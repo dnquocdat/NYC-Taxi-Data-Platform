@@ -1,7 +1,8 @@
-.PHONY: lint format test test-unit test-integration docker-up docker-down docker-logs dataset-check ingest-bronze-sample transform-silver-sample create-clickhouse-tables load-clickhouse-sample pipeline-sample dbt-seed dbt-run dbt-test dbt-docs
+.PHONY: lint format test test-unit test-integration docker-up docker-down docker-logs dataset-check ingest-bronze-sample transform-silver-sample create-clickhouse-tables load-clickhouse-sample pipeline-sample dbt-seed dbt-run dbt-test dbt-docs dbt-image-build dbt-image-push
 
 PYTHON ?= python
 DBT_DIR ?= dbt/nyc_taxi
+DBT_IMAGE ?= dnquocdat/nyc-taxi-dbt:latest
 
 lint:
 	$(PYTHON) -m ruff check src tests dags scripts
@@ -58,3 +59,9 @@ dbt-test:
 
 dbt-docs:
 	dbt docs generate --project-dir $(DBT_DIR) --profiles-dir $(DBT_DIR)
+
+dbt-image-build:
+	docker build -f dbt/nyc_taxi/Dockerfile -t $(DBT_IMAGE) .
+
+dbt-image-push:
+	docker push $(DBT_IMAGE)

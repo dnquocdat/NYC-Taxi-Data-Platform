@@ -36,9 +36,9 @@ See [architecture.mmd](architecture.mmd).
 
 ## Orchestration
 
-Airflow owns the end-to-end control flow in `nyc_taxi_monthly_pipeline`. The DAG is manually triggered with `start_month`, `end_month`, `sample_mode`, and `batch_id` params. It runs dataset validation, source availability checks, Bronze ingestion, Silver transformation, ClickHouse DDL/load, dbt seed/run/test, and a final structured success log.
+Airflow 3 owns the end-to-end control flow in `nyc_taxi_monthly_pipeline`. The DAG is manually triggered with `start_month`, `end_month`, `sample_mode`, and `batch_id` params. It runs dataset validation, source availability checks, Bronze ingestion, Silver transformation, ClickHouse DDL/load, dbt seed/run/test, and a final structured success log.
 
-The DAG is idempotent by delegating duplicate protection to each layer: Bronze uses the ingestion manifest and controlled `source_url` replacement, Silver merges by deterministic `trip_id`, ClickHouse replaces affected pickup-month partitions, and dbt rebuilds serving models before running tests. `dbt_test` is intentionally upstream of the success task so failed quality checks block the pipeline.
+The DAG is idempotent by delegating duplicate protection to each layer: Bronze uses the ingestion manifest and controlled `source_url` replacement, Silver merges by deterministic `trip_id`, ClickHouse replaces affected pickup-month partitions, and dbt rebuilds serving models before running tests. dbt runs in a dedicated Docker image, pulled by Airflow `DockerOperator`, so `dbt_seed`, `dbt_run`, and `dbt_test` do not depend on dbt being installed inside the Airflow image. `dbt_test` is intentionally upstream of the success task so failed quality checks block the pipeline.
 
 ## Modeling
 

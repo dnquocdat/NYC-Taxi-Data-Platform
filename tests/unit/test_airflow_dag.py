@@ -25,8 +25,11 @@ def test_airflow_dag_defines_required_tasks_and_policy() -> None:
         'task_id="dbt_run"',
         'task_id="dbt_test"',
         'task_id="log_pipeline_success"',
+        "DockerOperator",
+        "dnquocdat/nyc-taxi-dbt:latest",
+        "force_pull=True",
         "BATCH_ID",
-        "dbt test",
+        'command=f"test --project-dir',
     ]
 
     missing = [fragment for fragment in required_fragments if fragment not in dag_text]

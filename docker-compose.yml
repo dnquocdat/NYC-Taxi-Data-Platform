@@ -1,26 +1,38 @@
 name: ${PROJECT_NAME:-nyc-taxi-data-platform}
 
 x-airflow-common: &airflow-common
-  image: apache/airflow:${AIRFLOW_IMAGE_TAG:-2.9.3}
+  image: apache/airflow:${AIRFLOW_IMAGE_TAG:-3.1.0}
   environment:
     AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    AIRFLOW__CORE__AUTH_MANAGER: airflow.providers.fab.auth_manager.fab_auth_manager.FabAuthManager
     AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "true"
     AIRFLOW__CORE__LOAD_EXAMPLES: "false"
     AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${AIRFLOW_POSTGRES_USER}:${AIRFLOW_POSTGRES_PASSWORD}@airflow-postgres:5432/${AIRFLOW_POSTGRES_DB}
-    AIRFLOW__WEBSERVER__SECRET_KEY: ${AIRFLOW_WEBSERVER_SECRET_KEY}
+    AIRFLOW__CORE__EXECUTION_API_SERVER_URL: http://airflow-apiserver:8080/execution/
+    AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: "true"
+    AIRFLOW__API_AUTH__JWT_SECRET: ${AIRFLOW_API_JWT_SECRET}
     AIRFLOW_CONN_SPARK_DEFAULT: spark://${SPARK_MASTER_HOST:-spark-master}:7077
     AIRFLOW_ADMIN_USER: ${AIRFLOW_ADMIN_USER}
     AIRFLOW_ADMIN_PASSWORD: ${AIRFLOW_ADMIN_PASSWORD}
     AIRFLOW_ADMIN_EMAIL: ${AIRFLOW_ADMIN_EMAIL}
     NYC_TAXI_PROJECT_DIR: /opt/airflow/project
     PYTHONPATH: /opt/airflow/project/src
-    _PIP_ADDITIONAL_REQUIREMENTS: ${AIRFLOW_PIP_ADDITIONAL_REQUIREMENTS:-pydantic>=2.7 PyYAML>=6.0 requests>=2.32 delta-spark>=3.2,<4.0 pyarrow>=15.0 pyspark>=3.5,<3.6 dbt-clickhouse>=1.8,<1.9}
+    DBT_IMAGE: ${DBT_IMAGE:-dnquocdat/nyc-taxi-dbt:latest}
+    DATA_PLATFORM_NETWORK: ${PROJECT_NAME:-nyc-taxi-data-platform}-network
+    DOCKER_HOST: unix://var/run/docker.sock
+    CLICKHOUSE_HOST: ${CLICKHOUSE_HOST}
+    CLICKHOUSE_PORT: ${CLICKHOUSE_PORT}
+    CLICKHOUSE_DATABASE: ${CLICKHOUSE_DATABASE}
+    CLICKHOUSE_USER: ${CLICKHOUSE_USER}
+    CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
+    _PIP_ADDITIONAL_REQUIREMENTS: ${AIRFLOW_PIP_ADDITIONAL_REQUIREMENTS:-apache-airflow-providers-docker>=4.4.0 pydantic>=2.7 PyYAML>=6.0 requests>=2.32 delta-spark>=3.2,<4.0 pyarrow>=15.0 pyspark>=3.5,<3.6}
   user: "${AIRFLOW_UID:-50000}:0"
   volumes:
     - ./dags:/opt/airflow/dags
     - ./src:/opt/airflow/src
     - ./configs:/opt/airflow/configs
     - .:/opt/airflow/project
+    - /var/run/docker.sock:/var/run/docker.sock
     - airflow_logs:/opt/airflow/logs
   networks:
     - data-platform
@@ -169,16 +181,16 @@ services:
           --email "$${AIRFLOW_ADMIN_EMAIL}" || true
     restart: "no"
 
-  airflow-webserver:
+  airflow-apiserver:
     <<: *airflow-common
-    command: webserver
+    command: api-server
     ports:
       - "${AIRFLOW_WEBSERVER_PORT:-8080}:8080"
     depends_on:
       airflow-init:
         condition: service_completed_successfully
     healthcheck:
-      test: ["CMD-SHELL", "curl --fail http://localhost:8080/health"]
+      test: ["CMD-SHELL", "curl --fail http://localhost:8080/api/v2/version"]
       interval: 20s
       timeout: 10s
       retries: 12
@@ -190,7 +202,19 @@ services:
       airflow-init:
         condition: service_completed_successfully
     healthcheck:
-      test: ["CMD-SHELL", "airflow jobs check --job-type SchedulerJob --hostname \"$${HOSTNAME}\""]
+      test: ["CMD-SHELL", "curl --fail http://localhost:8974/health"]
+      interval: 20s
+      timeout: 10s
+      retries: 12
+
+  airflow-dag-processor:
+    <<: *airflow-common
+    command: dag-processor
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "airflow jobs check --job-type DagProcessorJob --hostname \"$${HOSTNAME}\""]
       interval: 20s
       timeout: 10s
       retries: 12

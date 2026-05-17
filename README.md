@@ -68,6 +68,8 @@ make dbt-seed
 make dbt-run
 make dbt-test
 make dbt-docs
+make dbt-image-build
+make dbt-image-push
 ```
 
 On Windows machines without `make`, run the equivalent commands directly:
@@ -89,6 +91,8 @@ python -m nyc_taxi_pipeline.cli load-clickhouse
 dbt seed --project-dir dbt/nyc_taxi --profiles-dir dbt/nyc_taxi
 dbt run --project-dir dbt/nyc_taxi --profiles-dir dbt/nyc_taxi
 dbt test --project-dir dbt/nyc_taxi --profiles-dir dbt/nyc_taxi
+docker build -f dbt/nyc_taxi/Dockerfile -t dnquocdat/nyc-taxi-dbt:latest .
+docker push dnquocdat/nyc-taxi-dbt:latest
 ```
 
 ## Docker Stack
@@ -250,6 +254,15 @@ make dbt-test
 
 The header-only file is committed deliberately so the repo does not ship fake location data. dbt relationship tests will block bad or missing location mappings.
 
+The Airflow DAG does not run dbt directly inside the Airflow image. dbt is packaged as a dedicated Docker image:
+
+```bash
+make dbt-image-build
+make dbt-image-push
+```
+
+The published image is configured by `DBT_IMAGE`, defaulting to `dnquocdat/nyc-taxi-dbt:latest`. Airflow uses `DockerOperator` with `force_pull=True`, so every `dbt_seed`, `dbt_run`, and `dbt_test` task pulls the image and runs it on the shared Docker Compose network.
+
 ## Airflow Orchestration
 
 The end-to-end DAG is [dags/nyc_taxi_pipeline_dag.py](dags/nyc_taxi_pipeline_dag.py) with `dag_id=nyc_taxi_monthly_pipeline`.
@@ -260,7 +273,7 @@ Start the stack and open Airflow:
 make docker-up
 ```
 
-Airflow UI: `http://localhost:8080`
+Airflow 3 API server/UI: `http://localhost:8080`
 
 Default local credentials come from `.env`:
 
@@ -296,14 +309,14 @@ Idempotency strategy:
 - Bronze skips source files already marked successful in the manifest and performs controlled delete-by-`source_url` before append.
 - Silver merges by deterministic `trip_id`, updating late-arriving rows only when the incoming `ingestion_timestamp` is newer.
 - ClickHouse deletes affected monthly partitions before inserting the current Silver rows.
-- dbt table models are rebuilt by dbt, and `dbt_test` blocks the success task if quality checks fail.
+- dbt table models are rebuilt by dbt inside the published dbt Docker image, and `dbt_test` blocks the success task if quality checks fail.
 
-Airflow uses `_PIP_ADDITIONAL_REQUIREMENTS` from `.env` to install the project runtime dependencies into the stock Airflow image at startup. This keeps Phase 9 simple and runnable; a later hardening step can replace it with a custom Airflow image for faster startup and pinned builds.
+Airflow uses `_PIP_ADDITIONAL_REQUIREMENTS` from `.env` to install project runtime dependencies and `apache-airflow-providers-docker` into the stock Airflow 3 image at startup. This keeps the local stack simple; a later hardening step can replace it with a custom Airflow image for faster startup and pinned builds.
 
 ## UI Access
 
 - MinIO Console: `http://localhost:9001`
-- Airflow UI: `http://localhost:8080`
+- Airflow 3 API server/UI: `http://localhost:8080`
 - Superset UI: `http://localhost:8088`
 - ClickHouse HTTP: `http://localhost:8123`
 - ClickHouse Native: `localhost:9009`

@@ -8,10 +8,17 @@ from datetime import datetime, timedelta
 from airflow import DAG
 from airflow.models.param import Param
 from airflow.operators.bash import BashOperator
+from airflow.providers.docker.operators.docker import DockerOperator
 
 DAG_ID = "nyc_taxi_monthly_pipeline"
 PROJECT_DIR = os.environ.get("NYC_TAXI_PROJECT_DIR", "/opt/airflow/project")
-DBT_DIR = f"{PROJECT_DIR}/dbt/nyc_taxi"
+DBT_PROJECT_DIR = "/app/dbt/nyc_taxi"
+DBT_IMAGE = os.environ.get("DBT_IMAGE", "dnquocdat/nyc-taxi-dbt:latest")
+DOCKER_URL = os.environ.get("DOCKER_HOST", "unix://var/run/docker.sock")
+DOCKER_NETWORK_MODE = os.environ.get(
+    "DATA_PLATFORM_NETWORK",
+    "nyc-taxi-data-platform-network",
+)
 
 COMMON_ENV = {
     "PYTHONPATH": f"{PROJECT_DIR}/src",
@@ -19,6 +26,14 @@ COMMON_ENV = {
     "DATASET_END_MONTH": "{{ dag_run.conf.get('end_month', params.end_month) }}",
     "SAMPLE_MODE": "{{ dag_run.conf.get('sample_mode', params.sample_mode) | string | lower }}",
     "BATCH_ID": "{{ dag_run.conf.get('batch_id', params.batch_id) or ts_nodash }}",
+}
+
+DBT_ENV = {
+    "CLICKHOUSE_HOST": os.environ.get("CLICKHOUSE_HOST", "clickhouse"),
+    "CLICKHOUSE_PORT": os.environ.get("CLICKHOUSE_PORT", "8123"),
+    "CLICKHOUSE_DATABASE": os.environ.get("CLICKHOUSE_DATABASE", "nyc_taxi"),
+    "CLICKHOUSE_USER": os.environ.get("CLICKHOUSE_USER", "default"),
+    "CLICKHOUSE_PASSWORD": os.environ.get("CLICKHOUSE_PASSWORD", ""),
 }
 
 DEFAULT_ARGS = {
@@ -31,6 +46,21 @@ DEFAULT_ARGS = {
 def project_command(command: str) -> str:
     """Return a Bash command that runs from the mounted project directory."""
     return f"set -euo pipefail\ncd {PROJECT_DIR}\n{command}"
+
+
+def dbt_operator(task_id: str, command: str) -> DockerOperator:
+    """Build a DockerOperator task that runs dbt from the published dbt image."""
+    return DockerOperator(
+        task_id=task_id,
+        image=DBT_IMAGE,
+        command=command,
+        docker_url=DOCKER_URL,
+        network_mode=DOCKER_NETWORK_MODE,
+        environment=DBT_ENV,
+        force_pull=True,
+        auto_remove="success",
+        mount_tmp_dir=False,
+    )
 
 
 with DAG(
@@ -112,22 +142,19 @@ with DAG(
         env=COMMON_ENV,
     )
 
-    dbt_seed = BashOperator(
+    dbt_seed = dbt_operator(
         task_id="dbt_seed",
-        bash_command=project_command(f"dbt seed --project-dir {DBT_DIR} --profiles-dir {DBT_DIR}"),
-        env=COMMON_ENV,
+        command=f"seed --project-dir {DBT_PROJECT_DIR} --profiles-dir {DBT_PROJECT_DIR}",
     )
 
-    dbt_run = BashOperator(
+    dbt_run = dbt_operator(
         task_id="dbt_run",
-        bash_command=project_command(f"dbt run --project-dir {DBT_DIR} --profiles-dir {DBT_DIR}"),
-        env=COMMON_ENV,
+        command=f"run --project-dir {DBT_PROJECT_DIR} --profiles-dir {DBT_PROJECT_DIR}",
     )
 
-    dbt_test = BashOperator(
+    dbt_test = dbt_operator(
         task_id="dbt_test",
-        bash_command=project_command(f"dbt test --project-dir {DBT_DIR} --profiles-dir {DBT_DIR}"),
-        env=COMMON_ENV,
+        command=f"test --project-dir {DBT_PROJECT_DIR} --profiles-dir {DBT_PROJECT_DIR}",
     )
 
     log_pipeline_success = BashOperator(
