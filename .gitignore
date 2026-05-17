@@ -1,0 +1,50 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Local secrets and environment
+.env
+.env.*
+!.env.example
+
+# Data and local runtime artifacts
+data/
+lakehouse/
+warehouse/
+logs/
+metrics/
+tmp/
+.codex_docx_render/
+
+# Airflow local state
+airflow/logs/
+airflow/plugins/
+airflow/airflow.cfg
+airflow/airflow.db
+
+# dbt generated artifacts
+target/
+dbt_packages/
+logs/dbt.log
+
+# Spark / Hadoop
+.spark-warehouse/
+metastore_db/
+derby.log
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+

@@ -1,0 +1,35 @@
+project:
+  name: nyc-taxi-data-platform
+  environment: local
+
+dataset:
+  name: nyc_tlc_yellow_taxi
+  base_url: ${NYC_TLC_BASE_URL}
+  taxi_zone_lookup_url: ${TAXI_ZONE_LOOKUP_URL}
+  start_month: ${DATASET_START_MONTH}
+  end_month: ${DATASET_END_MONTH}
+  sample_mode: ${SAMPLE_MODE}
+  minimum_records: ${MIN_DATASET_RECORDS}
+  minimum_raw_bytes: ${MIN_DATASET_RAW_BYTES}
+
+storage:
+  bucket: ${S3_BUCKET}
+  warehouse_path: ${S3_WAREHOUSE_PATH}
+  bronze_path: ${S3_WAREHOUSE_PATH}/bronze/yellow_taxi_trips
+  silver_path: ${S3_WAREHOUSE_PATH}/silver/yellow_taxi_trips
+  quarantine_path: ${S3_WAREHOUSE_PATH}/quarantine/yellow_taxi_trips
+  metrics_path: ${S3_WAREHOUSE_PATH}/metrics/pipeline_runs
+
+partitioning:
+  bronze:
+    - dataset_year
+    - dataset_month
+  silver:
+    - pickup_year
+    - pickup_month
+
+quality:
+  row_count_minimum: 1
+  invalid_ratio_warning_threshold: 0.02
+  freshness_warning_hours: 48
+

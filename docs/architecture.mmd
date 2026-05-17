@@ -1,0 +1,15 @@
+flowchart LR
+  source["NYC TLC Yellow Taxi Parquet<br/>Taxi Zone Lookup CSV"] --> airflow["Apache Airflow"]
+  airflow --> ingest["Spark ingest_bronze"]
+  ingest --> bronze["Bronze Delta<br/>MinIO S3A"]
+  bronze --> silver_job["Spark transform_silver"]
+  silver_job --> silver["Silver Delta<br/>validated + deduplicated"]
+  silver_job --> quarantine["Quarantine Delta<br/>invalid records + reasons"]
+  silver --> clickhouse_load["Spark/JDBC load_clickhouse"]
+  clickhouse_load --> ch["ClickHouse<br/>silver_yellow_taxi_trips"]
+  ch --> dbt["dbt-clickhouse<br/>dims + fact + marts"]
+  dbt --> superset["Apache Superset<br/>dashboard"]
+  ingest --> metrics["Structured logs + run metrics"]
+  silver_job --> metrics
+  clickhouse_load --> metrics
+
