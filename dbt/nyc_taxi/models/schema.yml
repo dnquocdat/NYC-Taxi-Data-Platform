@@ -1,0 +1,230 @@
+version: 2
+
+models:
+  - name: stg_yellow_taxi_trips
+    description: "Typed staging view over the ClickHouse Silver yellow taxi trips table."
+    columns:
+      - name: trip_id
+        description: "Deterministic SHA-256 trip identifier generated in Spark Silver."
+        tests:
+          - not_null
+          - unique
+      - name: pickup_datetime
+        description: "Trip pickup timestamp."
+        tests:
+          - not_null
+      - name: dropoff_datetime
+        description: "Trip dropoff timestamp."
+        tests:
+          - not_null
+      - name: pickup_location_id
+        description: "Pickup TLC taxi zone ID."
+      - name: dropoff_location_id
+        description: "Dropoff TLC taxi zone ID."
+
+  - name: stg_taxi_zones
+    description: "Staging view for the official NYC TLC Taxi Zone Lookup seed."
+    columns:
+      - name: location_id
+        description: "TLC taxi zone ID."
+        tests:
+          - not_null
+          - unique
+      - name: borough
+        description: "NYC borough for the taxi zone."
+      - name: zone
+        description: "Taxi zone name."
+      - name: service_zone
+        description: "TLC service zone category."
+
+  - name: dim_date
+    description: "Calendar dimension derived from trip pickup dates."
+    columns:
+      - name: date_id
+        description: "Primary key date for joining facts by pickup date."
+        tests:
+          - not_null
+          - unique
+      - name: year
+        description: "Calendar year."
+      - name: month
+        description: "Calendar month number."
+      - name: day_of_month
+        description: "Day of month."
+      - name: day_of_week
+        description: "ClickHouse day-of-week number."
+      - name: day_name
+        description: "Localized weekday name from ClickHouse."
+
+  - name: dim_time
+    description: "Hour-of-day dimension for pickup demand analysis."
+    columns:
+      - name: time_id
+        description: "Primary key hour of day, 0 through 23."
+        tests:
+          - not_null
+          - unique
+      - name: hour_of_day
+        description: "Hour of day, 0 through 23."
+      - name: day_part
+        description: "Coarse day-part bucket."
+
+  - name: dim_location
+    description: "Official TLC taxi zone location dimension."
+    columns:
+      - name: location_id
+        description: "Primary key TLC taxi zone ID."
+        tests:
+          - not_null
+          - unique
+      - name: borough
+        description: "NYC borough."
+      - name: zone
+        description: "Taxi zone name."
+      - name: service_zone
+        description: "TLC service zone category."
+
+  - name: dim_vendor
+    description: "Yellow taxi vendor code dimension."
+    columns:
+      - name: vendor_id
+        description: "Primary key vendor ID from TLC records."
+        tests:
+          - not_null
+          - unique
+      - name: vendor_name
+        description: "Vendor display name."
+
+  - name: dim_payment_type
+    description: "Yellow taxi payment type code dimension."
+    columns:
+      - name: payment_type_id
+        description: "Primary key payment type ID."
+        tests:
+          - not_null
+          - unique
+      - name: payment_type_name
+        description: "Payment type display name."
+
+  - name: dim_rate_code
+    description: "Yellow taxi rate code dimension."
+    columns:
+      - name: rate_code_id
+        description: "Primary key rate code ID."
+        tests:
+          - not_null
+          - unique
+      - name: rate_code_name
+        description: "Rate code display name."
+
+  - name: fact_trips
+    description: "Trip fact table. Grain: one row equals one validated yellow taxi trip. Primary key: trip_id."
+    tests:
+      - expression_is_true:
+          expression: "dropoff_datetime > pickup_datetime"
+      - expression_is_true:
+          expression: "fare_amount >= 0"
+      - expression_is_true:
+          expression: "total_amount >= 0"
+      - expression_is_true:
+          expression: "trip_distance > 0"
+    columns:
+      - name: trip_id
+        description: "Primary key for the trip fact."
+        tests:
+          - not_null
+          - unique
+      - name: pickup_datetime
+        description: "Pickup timestamp."
+        tests:
+          - not_null
+      - name: dropoff_datetime
+        description: "Dropoff timestamp."
+        tests:
+          - not_null
+      - name: pickup_date_id
+        description: "Foreign key to dim_date.date_id."
+        tests:
+          - relationships:
+              to: ref('dim_date')
+              field: date_id
+      - name: pickup_time_id
+        description: "Foreign key to dim_time.time_id."
+        tests:
+          - relationships:
+              to: ref('dim_time')
+              field: time_id
+      - name: pickup_location_id
+        description: "Foreign key to dim_location.location_id for pickup zone."
+        tests:
+          - relationships:
+              to: ref('dim_location')
+              field: location_id
+      - name: dropoff_location_id
+        description: "Foreign key to dim_location.location_id for dropoff zone."
+        tests:
+          - relationships:
+              to: ref('dim_location')
+              field: location_id
+      - name: payment_type_id
+        description: "Foreign key to dim_payment_type.payment_type_id."
+        tests:
+          - accepted_values:
+              values: [1, 2, 3, 4, 5, 6]
+              quote: false
+      - name: vendor_id
+        description: "Foreign key to dim_vendor.vendor_id."
+      - name: rate_code_id
+        description: "Foreign key to dim_rate_code.rate_code_id."
+      - name: fare_amount
+        description: "Meter fare amount in USD."
+      - name: total_amount
+        description: "Total trip amount in USD."
+      - name: trip_distance
+        description: "Trip distance in miles."
+      - name: tip_amount
+        description: "Tip amount in USD."
+
+  - name: mart_daily_revenue
+    description: "Daily trip and revenue metrics for time-series dashboard charts."
+    columns:
+      - name: date_id
+        description: "Pickup date."
+      - name: trip_count
+        description: "Number of trips."
+      - name: total_revenue
+        description: "Sum of total_amount."
+
+  - name: mart_hourly_demand
+    description: "Trip demand and revenue by pickup hour."
+    columns:
+      - name: hour_of_day
+        description: "Pickup hour."
+      - name: day_part
+        description: "Coarse day-part bucket."
+      - name: trip_count
+        description: "Number of trips."
+
+  - name: mart_location_performance
+    description: "Pickup-zone demand, revenue, and trip performance metrics."
+    columns:
+      - name: location_id
+        description: "Pickup TLC zone ID."
+      - name: borough
+        description: "Pickup borough."
+      - name: zone
+        description: "Pickup zone name."
+      - name: pickup_trip_count
+        description: "Number of pickup trips."
+
+  - name: mart_payment_summary
+    description: "Revenue and tip behavior summarized by payment type."
+    columns:
+      - name: payment_type_id
+        description: "Payment type ID."
+      - name: payment_type_name
+        description: "Payment type display name."
+      - name: total_revenue
+        description: "Revenue by payment type."
+      - name: tip_revenue_ratio
+        description: "Tip amount divided by total revenue."

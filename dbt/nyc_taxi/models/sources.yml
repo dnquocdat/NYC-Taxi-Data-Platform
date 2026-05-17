@@ -1,0 +1,20 @@
+version: 2
+
+sources:
+  - name: serving
+    description: "ClickHouse serving schema loaded from the Spark Silver Delta table."
+    schema: "{{ env_var('CLICKHOUSE_DATABASE', 'nyc_taxi') }}"
+    tables:
+      - name: silver_yellow_taxi_trips
+        description: "Validated and deduplicated yellow taxi trips loaded from Silver Delta."
+        columns:
+          - name: trip_id
+            description: "Deterministic SHA-256 trip identifier."
+          - name: pickup_datetime
+            description: "Trip pickup timestamp."
+          - name: dropoff_datetime
+            description: "Trip dropoff timestamp."
+          - name: pickup_location_id
+            description: "Pickup TLC taxi zone ID."
+          - name: dropoff_location_id
+            description: "Dropoff TLC taxi zone ID."

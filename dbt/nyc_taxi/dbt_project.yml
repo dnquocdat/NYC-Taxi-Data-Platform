@@ -1,0 +1,42 @@
+name: nyc_taxi
+version: 1.0.0
+config-version: 2
+
+profile: nyc_taxi
+
+model-paths: ["models"]
+seed-paths: ["seeds"]
+test-paths: ["tests"]
+target-path: "target"
+clean-targets: ["target", "dbt_packages"]
+
+models:
+  nyc_taxi:
+    staging:
+      +materialized: view
+    marts:
+      core:
+        +materialized: table
+      analytics:
+        +materialized: table
+
+seeds:
+  nyc_taxi:
+    taxi_zone_lookup:
+      +column_types:
+        LocationID: UInt16
+        Borough: String
+        Zone: String
+        service_zone: String
+    payment_type:
+      +column_types:
+        payment_type_id: UInt16
+        payment_type_name: String
+    vendor:
+      +column_types:
+        vendor_id: UInt16
+        vendor_name: String
+    rate_code:
+      +column_types:
+        rate_code_id: UInt16
+        rate_code_name: String

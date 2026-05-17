@@ -62,8 +62,10 @@ make transform-silver-sample
 make create-clickhouse-tables
 make load-clickhouse-sample
 make pipeline-sample
+make dbt-seed
 make dbt-run
 make dbt-test
+make dbt-docs
 ```
 
 On Windows machines without `make`, run the equivalent commands directly:
@@ -80,6 +82,9 @@ python -m nyc_taxi_pipeline.cli ingest-bronze --start-month 2023-01 --end-month 
 python -m nyc_taxi_pipeline.cli transform-silver
 docker compose --env-file .env exec -T clickhouse clickhouse-client --queries-file /opt/project/scripts/create_clickhouse_tables.sql
 python -m nyc_taxi_pipeline.cli load-clickhouse
+dbt seed --project-dir dbt/nyc_taxi --profiles-dir dbt/nyc_taxi
+dbt run --project-dir dbt/nyc_taxi --profiles-dir dbt/nyc_taxi
+dbt test --project-dir dbt/nyc_taxi --profiles-dir dbt/nyc_taxi
 ```
 
 ## Docker Stack
@@ -205,6 +210,27 @@ python -m nyc_taxi_pipeline.cli load-clickhouse
 ```
 
 The load is idempotent at the month-partition level. The loader reads affected `pickup_datetime` months from Silver, runs a ClickHouse `ALTER TABLE ... DELETE WHERE toYYYYMM(pickup_datetime) IN (...) SETTINGS mutations_sync = 2`, then appends the current Silver rows through Spark JDBC. This is more deterministic for dbt and Superset than relying on eventual background deduplication.
+
+## dbt Star Schema
+
+dbt models live in [dbt/nyc_taxi](dbt/nyc_taxi). The project reads `nyc_taxi.silver_yellow_taxi_trips` from ClickHouse and builds:
+
+- staging views: `stg_yellow_taxi_trips`, `stg_taxi_zones`
+- core star schema: `fact_trips`, `dim_date`, `dim_time`, `dim_location`, `dim_vendor`, `dim_payment_type`, `dim_rate_code`
+- analytics marts: `mart_daily_revenue`, `mart_hourly_demand`, `mart_location_performance`, `mart_payment_summary`
+
+`fact_trips` grain is one row per validated taxi trip, with `trip_id` as the primary key.
+
+Before production dbt runs, replace the header-only `dbt/nyc_taxi/seeds/taxi_zone_lookup.csv` with the official NYC TLC Taxi Zone Lookup file:
+
+```bash
+curl -L "https://d37ci6vzurychx.cloudfront.net/misc/taxi_zone_lookup.csv" -o dbt/nyc_taxi/seeds/taxi_zone_lookup.csv
+make dbt-seed
+make dbt-run
+make dbt-test
+```
+
+The header-only file is committed deliberately so the repo does not ship fake location data. dbt relationship tests will block bad or missing location mappings.
 
 ## UI Access
 

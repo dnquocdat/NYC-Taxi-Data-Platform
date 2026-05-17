@@ -1,4 +1,4 @@
-.PHONY: lint format test docker-up docker-down docker-logs dataset-check ingest-bronze-sample transform-silver-sample create-clickhouse-tables load-clickhouse-sample pipeline-sample dbt-run dbt-test
+.PHONY: lint format test docker-up docker-down docker-logs dataset-check ingest-bronze-sample transform-silver-sample create-clickhouse-tables load-clickhouse-sample pipeline-sample dbt-seed dbt-run dbt-test dbt-docs
 
 PYTHON ?= python
 DBT_DIR ?= dbt/nyc_taxi
@@ -41,8 +41,14 @@ load-clickhouse-sample:
 pipeline-sample:
 	$(PYTHON) -m nyc_taxi_pipeline.cli run-sample
 
+dbt-seed:
+	dbt seed --project-dir $(DBT_DIR) --profiles-dir $(DBT_DIR)
+
 dbt-run:
 	dbt run --project-dir $(DBT_DIR) --profiles-dir $(DBT_DIR)
 
 dbt-test:
 	dbt test --project-dir $(DBT_DIR) --profiles-dir $(DBT_DIR)
+
+dbt-docs:
+	dbt docs generate --project-dir $(DBT_DIR) --profiles-dir $(DBT_DIR)
