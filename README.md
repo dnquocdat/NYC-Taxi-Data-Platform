@@ -1,5 +1,7 @@
 # NYC Taxi Data Platform
 
+[![CI](https://github.com/dnquocdat/NYC-Taxi-Data-Platform/actions/workflows/ci.yml/badge.svg)](https://github.com/dnquocdat/NYC-Taxi-Data-Platform/actions/workflows/ci.yml)
+
 Engineering-grade compact data platform for the Nexlab Data Engineer Internship Entrance Project.
 
 ## Overview
@@ -42,9 +44,9 @@ Local setup should stay within five steps:
 4. Run `make dbt-run && make dbt-test`.
 5. Open Superset and review the dashboard.
 
-## Current Phase
+## Project Status
 
-Phase 2 adds the local Docker Compose stack. Pipeline implementation starts in later phases.
+The project currently includes the local Docker stack, Spark Bronze/Silver jobs, ClickHouse serving load, dbt star schema, Airflow orchestration, transformation tests, and CI checks.
 
 ## Commands
 
@@ -94,6 +96,10 @@ dbt test --project-dir dbt/nyc_taxi --profiles-dir dbt/nyc_taxi
 docker build -f dbt/nyc_taxi/Dockerfile -t dnquocdat/nyc-taxi-dbt:latest .
 docker push dnquocdat/nyc-taxi-dbt:latest
 ```
+
+## CI
+
+GitHub Actions runs on every push and pull request. The workflow installs Python dependencies, runs `ruff`, `black --check`, `pytest`, validates `docker compose --env-file .env.example config --quiet`, and builds the dbt Docker image. CI uses `.env.example` and does not require real secrets or a full local data platform startup.
 
 ## Docker Stack
 
