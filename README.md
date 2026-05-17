@@ -40,9 +40,9 @@ Local setup should stay within five steps:
 
 1. Copy `.env.example` to `.env` and adjust local ports or credentials if needed.
 2. Run `make docker-up`.
-3. Run `make pipeline-sample` for the small test path.
-4. Run `make dbt-run && make dbt-test`.
-5. Open Superset and review the dashboard.
+3. Run `make dataset-check` to verify the default full dataset selection exceeds the required threshold.
+4. Run `make pipeline-sample` for a tiny local Bronze to Silver smoke path.
+5. Trigger the Airflow DAG for the full path, then open Superset and review the dashboard.
 
 ## Project Status
 
