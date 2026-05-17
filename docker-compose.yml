@@ -1,0 +1,239 @@
+name: ${PROJECT_NAME:-nyc-taxi-data-platform}
+
+x-airflow-common: &airflow-common
+  image: apache/airflow:${AIRFLOW_IMAGE_TAG:-2.9.3}
+  environment:
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "true"
+    AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${AIRFLOW_POSTGRES_USER}:${AIRFLOW_POSTGRES_PASSWORD}@airflow-postgres:5432/${AIRFLOW_POSTGRES_DB}
+    AIRFLOW__WEBSERVER__SECRET_KEY: ${AIRFLOW_WEBSERVER_SECRET_KEY}
+    AIRFLOW_CONN_SPARK_DEFAULT: spark://${SPARK_MASTER_HOST:-spark-master}:7077
+    AIRFLOW_ADMIN_USER: ${AIRFLOW_ADMIN_USER}
+    AIRFLOW_ADMIN_PASSWORD: ${AIRFLOW_ADMIN_PASSWORD}
+    AIRFLOW_ADMIN_EMAIL: ${AIRFLOW_ADMIN_EMAIL}
+  user: "${AIRFLOW_UID:-50000}:0"
+  volumes:
+    - ./dags:/opt/airflow/dags
+    - ./src:/opt/airflow/src
+    - ./configs:/opt/airflow/configs
+    - airflow_logs:/opt/airflow/logs
+  networks:
+    - data-platform
+  depends_on:
+    airflow-postgres:
+      condition: service_healthy
+
+services:
+  minio:
+    image: minio/minio:${MINIO_IMAGE_TAG:-RELEASE.2025-04-22T22-12-26Z}
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    ports:
+      - "${MINIO_API_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    networks:
+      - data-platform
+
+  minio-init:
+    image: minio/mc:${MINIO_MC_IMAGE_TAG:-RELEASE.2025-04-16T18-13-26Z}
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      S3_BUCKET: ${S3_BUCKET}
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 \"$${MINIO_ROOT_USER}\" \"$${MINIO_ROOT_PASSWORD}\";
+      mc mb --ignore-existing local/\"$${S3_BUCKET}\";
+      mc anonymous set none local/\"$${S3_BUCKET}\";
+      "
+    depends_on:
+      minio:
+        condition: service_healthy
+    networks:
+      - data-platform
+
+  spark-master:
+    image: bitnami/spark:${SPARK_IMAGE_TAG:-3.5.1}
+    environment:
+      SPARK_MODE: master
+      SPARK_MASTER_HOST: ${SPARK_MASTER_HOST:-spark-master}
+      SPARK_MASTER_PORT_NUMBER: 7077
+      SPARK_MASTER_WEBUI_PORT: 8080
+    ports:
+      - "${SPARK_MASTER_PORT:-7077}:7077"
+      - "${SPARK_MASTER_UI_PORT:-18080}:8080"
+    volumes:
+      - ./src:/opt/bitnami/spark/app/src
+      - ./configs:/opt/bitnami/spark/app/configs
+      - spark_events:/opt/bitnami/spark/events
+    healthcheck:
+      test: ["CMD-SHELL", "bash -ec ': > /dev/tcp/127.0.0.1/7077'"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    networks:
+      - data-platform
+
+  spark-worker:
+    image: bitnami/spark:${SPARK_IMAGE_TAG:-3.5.1}
+    environment:
+      SPARK_MODE: worker
+      SPARK_MASTER_URL: spark://${SPARK_MASTER_HOST:-spark-master}:7077
+      SPARK_WORKER_MEMORY: ${SPARK_WORKER_MEMORY:-2g}
+      SPARK_WORKER_CORES: ${SPARK_WORKER_CORES:-2}
+      SPARK_WORKER_WEBUI_PORT: 8081
+    ports:
+      - "${SPARK_WORKER_UI_PORT:-18081}:8081"
+    volumes:
+      - ./src:/opt/bitnami/spark/app/src
+      - ./configs:/opt/bitnami/spark/app/configs
+      - spark_events:/opt/bitnami/spark/events
+    depends_on:
+      spark-master:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "bash -ec ': > /dev/tcp/127.0.0.1/8081'"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    networks:
+      - data-platform
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:${CLICKHOUSE_IMAGE_TAG:-24.8}
+    environment:
+      CLICKHOUSE_DB: ${CLICKHOUSE_DATABASE}
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
+    ports:
+      - "${CLICKHOUSE_HTTP_PORT:-8123}:8123"
+      - "${CLICKHOUSE_NATIVE_HOST_PORT:-9009}:9000"
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+      - clickhouse_logs:/var/log/clickhouse-server
+    healthcheck:
+      test: ["CMD-SHELL", "clickhouse-client --query 'SELECT 1'"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    networks:
+      - data-platform
+
+  airflow-postgres:
+    image: postgres:${POSTGRES_IMAGE_TAG:-16}
+    environment:
+      POSTGRES_USER: ${AIRFLOW_POSTGRES_USER}
+      POSTGRES_PASSWORD: ${AIRFLOW_POSTGRES_PASSWORD}
+      POSTGRES_DB: ${AIRFLOW_POSTGRES_DB}
+    ports:
+      - "${AIRFLOW_POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - airflow_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    networks:
+      - data-platform
+
+  airflow-init:
+    <<: *airflow-common
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - |
+        airflow db migrate
+        airflow users create \
+          --username "$${AIRFLOW_ADMIN_USER}" \
+          --password "$${AIRFLOW_ADMIN_PASSWORD}" \
+          --firstname Data \
+          --lastname Engineer \
+          --role Admin \
+          --email "$${AIRFLOW_ADMIN_EMAIL}" || true
+    restart: "no"
+
+  airflow-webserver:
+    <<: *airflow-common
+    command: webserver
+    ports:
+      - "${AIRFLOW_WEBSERVER_PORT:-8080}:8080"
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail http://localhost:8080/health"]
+      interval: 20s
+      timeout: 10s
+      retries: 12
+
+  airflow-scheduler:
+    <<: *airflow-common
+    command: scheduler
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "airflow jobs check --job-type SchedulerJob --hostname \"$${HOSTNAME}\""]
+      interval: 20s
+      timeout: 10s
+      retries: 12
+
+  superset:
+    image: apache/superset:${SUPERSET_IMAGE_TAG:-4.1.2}
+    environment:
+      SUPERSET_SECRET_KEY: ${SUPERSET_SECRET_KEY}
+      SUPERSET_ADMIN_USER: ${SUPERSET_ADMIN_USER}
+      SUPERSET_ADMIN_PASSWORD: ${SUPERSET_ADMIN_PASSWORD}
+      SUPERSET_ADMIN_EMAIL: ${SUPERSET_ADMIN_EMAIL}
+    command:
+      - /bin/bash
+      - -c
+      - |
+        superset db upgrade
+        superset fab create-admin \
+          --username "$${SUPERSET_ADMIN_USER}" \
+          --firstname Data \
+          --lastname Engineer \
+          --email "$${SUPERSET_ADMIN_EMAIL}" \
+          --password "$${SUPERSET_ADMIN_PASSWORD}" || true
+        superset init
+        superset run -h 0.0.0.0 -p 8088
+    ports:
+      - "${SUPERSET_PORT:-8088}:8088"
+    volumes:
+      - superset_home:/app/superset_home
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail http://localhost:8088/health"]
+      interval: 20s
+      timeout: 10s
+      retries: 12
+    networks:
+      - data-platform
+
+networks:
+  data-platform:
+    name: ${PROJECT_NAME:-nyc-taxi-data-platform}-network
+
+volumes:
+  minio_data:
+  spark_events:
+  clickhouse_data:
+  clickhouse_logs:
+  airflow_postgres_data:
+  airflow_logs:
+  superset_home:
