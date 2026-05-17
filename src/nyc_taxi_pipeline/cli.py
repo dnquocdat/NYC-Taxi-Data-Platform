@@ -14,6 +14,7 @@ from nyc_taxi_pipeline.logging_utils import configure_logging, get_logger, log_e
 from nyc_taxi_pipeline.metrics import MetricsRecorder
 from nyc_taxi_pipeline.spark.bronze import ingest_bronze
 from nyc_taxi_pipeline.spark.session import create_spark_session
+from nyc_taxi_pipeline.spark.silver import transform_silver
 
 
 @click.group()
@@ -98,6 +99,35 @@ def ingest_bronze_command(
         processed_sources=result.processed_sources,
         skipped_sources=result.skipped_sources,
         records_written=result.records_written,
+    )
+
+
+@main.command("transform-silver")
+@click.option("--batch-id", type=str, default=None, help="Pipeline batch id.")
+def transform_silver_command(batch_id: str | None) -> None:
+    """Transform Bronze Delta records into Silver and Quarantine Delta tables."""
+    config = load_config()
+    resolved_batch_id = batch_id or datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+    configure_logging(config.runtime.log_level)
+    logger = get_logger("nyc_taxi_pipeline.transform_silver")
+    spark = create_spark_session("nyc-taxi-transform-silver", config)
+    metrics_recorder = MetricsRecorder(config.runtime.metrics_output_path)
+    result = transform_silver(
+        spark,
+        config,
+        resolved_batch_id,
+        logger=logger,
+        metrics_recorder=metrics_recorder,
+    )
+    log_event(
+        logger,
+        "silver_cli_completed",
+        "transform_silver",
+        batch_id=resolved_batch_id,
+        records_read=result.records_read,
+        valid_records_count=result.valid_records_count,
+        invalid_records_count=result.invalid_records_count,
+        duplicates_dropped=result.duplicates_dropped,
     )
 
 

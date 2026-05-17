@@ -55,6 +55,16 @@ ClickHouse is partitioned by `toYYYYMM(pickup_datetime)` and ordered by `pickup_
 
 Invalid business records are written to Quarantine with `error_reason`, source metadata, and quarantine timestamp.
 
+Bronze ingestion uses a JSONL manifest keyed by source URL. If a source file has already succeeded, reruns skip it. If a retry has to ingest the same source again, the job deletes rows for that `source_url` only, then appends the replacement rows.
+
+Silver transformation handles three expected failure modes:
+
+- Duplicate records: valid rows are deduplicated by deterministic `trip_id`; the newest `ingestion_timestamp` wins.
+- Schema differences: required NYC TLC columns are validated with clear missing-column messages, while optional columns are filled with nulls.
+- Bad business records: invalid rows are written to Quarantine with `error_reason`, `quarantine_timestamp`, `batch_id`, and `source_file`.
+
+Late-arriving valid records are handled with a Delta merge on `trip_id`. Existing Silver rows are updated only when the incoming row has a newer or equal `ingestion_timestamp`; otherwise the existing row is kept.
+
 dbt test failures block downstream dashboard trust and fail the Airflow task.
 
 Airflow tasks use retries and structured logs. Errors are not swallowed.
@@ -91,4 +101,3 @@ Local Docker Compose keeps cost near zero but is limited by machine CPU, memory,
 - Add OpenLineage or Marquez for lineage.
 - Add Terraform for cloud deployment.
 - Add automated performance regression checks.
-

@@ -58,6 +58,7 @@ make docker-logs
 make docker-down
 make dataset-check
 make ingest-bronze-sample
+make transform-silver-sample
 make pipeline-sample
 make dbt-run
 make dbt-test
@@ -74,6 +75,7 @@ docker compose --env-file .env logs -f --tail=200
 docker compose --env-file .env down
 python scripts/check_dataset_size.py
 python -m nyc_taxi_pipeline.cli ingest-bronze --start-month 2023-01 --end-month 2023-01 --sample-mode --skip-head
+python -m nyc_taxi_pipeline.cli transform-silver
 ```
 
 ## Docker Stack
@@ -158,6 +160,27 @@ python -m nyc_taxi_pipeline.cli ingest-bronze --start-month 2023-01 --end-month 
 ```
 
 The command still uses Spark as the ingestion engine. Sample mode only bypasses the dataset threshold gate; it is not the production dataset.
+
+## Silver Transform And Quarantine
+
+Silver transformation reads Bronze Delta, normalizes NYC TLC source columns to snake_case, casts expected data types, creates deterministic `trip_id`, derives time and speed fields, validates business rules, and deduplicates valid trips.
+
+Validation failures are written to Quarantine Delta at `QUARANTINE_DELTA_PATH` with:
+
+- `error_reason`
+- `quarantine_timestamp`
+- `batch_id`
+- `source_file`
+
+Valid records are merged into Silver Delta at `SILVER_DELTA_PATH` by `trip_id`. Late-arriving records update existing trips only when their `ingestion_timestamp` is newer than the target row. New trip ids are inserted.
+
+Silver metrics include `records_read`, `valid_records_count`, `invalid_records_count`, `invalid_records_ratio`, `duplicates_dropped`, and `job_duration_seconds`.
+
+Run the transform after Bronze ingestion:
+
+```bash
+python -m nyc_taxi_pipeline.cli transform-silver
+```
 
 ## UI Access
 
