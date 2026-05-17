@@ -1,4 +1,4 @@
-.PHONY: lint format test docker-up docker-down docker-logs dataset-check pipeline-sample dbt-run dbt-test
+.PHONY: lint format test docker-up docker-down docker-logs dataset-check ingest-bronze-sample pipeline-sample dbt-run dbt-test
 
 PYTHON ?= python
 DBT_DIR ?= dbt/nyc_taxi
@@ -25,6 +25,9 @@ docker-logs:
 
 dataset-check:
 	$(PYTHON) scripts/check_dataset_size.py
+
+ingest-bronze-sample:
+	$(PYTHON) -m nyc_taxi_pipeline.cli ingest-bronze --start-month 2023-01 --end-month 2023-01 --sample-mode --skip-head
 
 pipeline-sample:
 	$(PYTHON) -m nyc_taxi_pipeline.cli run-sample

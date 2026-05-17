@@ -23,6 +23,7 @@ lakehouse/
 warehouse/
 logs/
 metrics/
+manifests/
 tmp/
 .codex_docx_render/
 
@@ -47,4 +48,3 @@ derby.log
 .vscode/
 .DS_Store
 Thumbs.db
-

@@ -28,10 +28,11 @@ dataset:
 storage:
   bucket: ${S3_BUCKET}
   warehouse_path: ${S3_WAREHOUSE_PATH}
-  bronze_path: ${S3_WAREHOUSE_PATH}/bronze/yellow_taxi_trips
-  silver_path: ${S3_WAREHOUSE_PATH}/silver/yellow_taxi_trips
-  quarantine_path: ${S3_WAREHOUSE_PATH}/quarantine/yellow_taxi_trips
+  bronze_path: ${BRONZE_DELTA_PATH}
+  silver_path: ${SILVER_DELTA_PATH}
+  quarantine_path: ${QUARANTINE_DELTA_PATH}
   metrics_path: ${S3_WAREHOUSE_PATH}/metrics/pipeline_runs
+  ingestion_manifest_path: ${INGESTION_MANIFEST_PATH}
 
 partitioning:
   bronze:

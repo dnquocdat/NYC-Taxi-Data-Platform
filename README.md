@@ -57,6 +57,7 @@ make docker-up
 make docker-logs
 make docker-down
 make dataset-check
+make ingest-bronze-sample
 make pipeline-sample
 make dbt-run
 make dbt-test
@@ -72,6 +73,7 @@ docker compose --env-file .env up -d
 docker compose --env-file .env logs -f --tail=200
 docker compose --env-file .env down
 python scripts/check_dataset_size.py
+python -m nyc_taxi_pipeline.cli ingest-bronze --start-month 2023-01 --end-month 2023-01 --sample-mode --skip-head
 ```
 
 ## Docker Stack
@@ -131,6 +133,31 @@ Standard metrics include:
 - `invalid_records_count`
 - `duplicates_dropped`
 - `data_freshness_hours`
+
+## Bronze Ingestion
+
+Bronze ingestion reads NYC TLC Yellow Taxi Parquet files with Spark and writes a Delta table to `BRONZE_DELTA_PATH`, which defaults to `s3a://nyc-taxi/bronze/yellow_taxi_trips`.
+
+Each Bronze row receives lineage metadata:
+
+- `source_file`
+- `source_url`
+- `ingestion_timestamp`
+- `batch_id`
+- `dataset_year`
+- `dataset_month`
+
+The Bronze table is partitioned by `dataset_year` and `dataset_month` because NYC TLC files are delivered by month. This keeps reruns scoped to a source month and avoids rewriting unrelated data.
+
+Idempotency is handled with a JSONL manifest at `INGESTION_MANIFEST_PATH`. If a source URL has a successful manifest entry, reruns skip it. For a source that must be ingested, the job performs a controlled Delta delete for existing rows with the same `source_url`, then appends the new rows. It never overwrites the whole Bronze table.
+
+Run a small Bronze smoke command with:
+
+```bash
+python -m nyc_taxi_pipeline.cli ingest-bronze --start-month 2023-01 --end-month 2023-01 --sample-mode --skip-head
+```
+
+The command still uses Spark as the ingestion engine. Sample mode only bypasses the dataset threshold gate; it is not the production dataset.
 
 ## UI Access
 

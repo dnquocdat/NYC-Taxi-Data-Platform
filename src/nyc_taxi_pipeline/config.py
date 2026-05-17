@@ -43,7 +43,11 @@ _LOCAL_DEFAULTS: dict[str, str] = {
     "TAXI_ZONE_LOOKUP_URL": "https://d37ci6vzurychx.cloudfront.net/misc/taxi_zone_lookup.csv",
     "MINIO_ENDPOINT": "http://minio:9000",
     "S3_BUCKET": "nyc-taxi",
-    "S3_WAREHOUSE_PATH": "s3a://nyc-taxi/delta",
+    "S3_WAREHOUSE_PATH": "s3a://nyc-taxi",
+    "BRONZE_DELTA_PATH": "s3a://nyc-taxi/bronze/yellow_taxi_trips",
+    "SILVER_DELTA_PATH": "s3a://nyc-taxi/silver/yellow_taxi_trips",
+    "QUARANTINE_DELTA_PATH": "s3a://nyc-taxi/quarantine/yellow_taxi_trips",
+    "INGESTION_MANIFEST_PATH": "manifests/bronze_ingestion_manifest.jsonl",
     "SPARK_MASTER_URL": "spark://spark-master:7077",
     "SPARK_DRIVER_MEMORY": "2g",
     "SPARK_EXECUTOR_MEMORY": "2g",
@@ -82,6 +86,7 @@ class StorageConfig:
     silver_path: str
     quarantine_path: str
     metrics_path: str
+    ingestion_manifest_path: Path
     minio_endpoint: str
     minio_access_key: str | None
     minio_secret_key: str | None
@@ -272,10 +277,15 @@ def load_config(
         storage=StorageConfig(
             bucket=str(storage.get("bucket", merged_env["S3_BUCKET"])),
             warehouse_path=str(storage.get("warehouse_path", merged_env["S3_WAREHOUSE_PATH"])),
-            bronze_path=str(storage.get("bronze_path")),
-            silver_path=str(storage.get("silver_path")),
-            quarantine_path=str(storage.get("quarantine_path")),
+            bronze_path=str(storage.get("bronze_path", merged_env["BRONZE_DELTA_PATH"])),
+            silver_path=str(storage.get("silver_path", merged_env["SILVER_DELTA_PATH"])),
+            quarantine_path=str(
+                storage.get("quarantine_path", merged_env["QUARANTINE_DELTA_PATH"])
+            ),
             metrics_path=str(storage.get("metrics_path")),
+            ingestion_manifest_path=Path(
+                storage.get("ingestion_manifest_path", merged_env["INGESTION_MANIFEST_PATH"])
+            ),
             minio_endpoint=merged_env["MINIO_ENDPOINT"],
             minio_access_key=_as_optional(merged_env.get("MINIO_ROOT_USER")),
             minio_secret_key=_as_optional(merged_env.get("MINIO_ROOT_PASSWORD")),
