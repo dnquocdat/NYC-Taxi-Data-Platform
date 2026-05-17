@@ -1,0 +1,1 @@
+"""Idempotent ingestion manifest helpers."""

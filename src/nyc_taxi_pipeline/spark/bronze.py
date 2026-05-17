@@ -1,0 +1,1 @@
+"""Bronze Delta ingestion job."""
