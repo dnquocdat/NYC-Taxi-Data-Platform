@@ -1,17 +1,39 @@
+with location_events as (
+    select
+        'pickup' as location_role,
+        pickup_location_id as location_id,
+        total_amount,
+        trip_distance,
+        trip_duration_minutes
+    from {{ ref('fact_trips') }}
+
+    union all
+
+    select
+        'dropoff' as location_role,
+        dropoff_location_id as location_id,
+        total_amount,
+        trip_distance,
+        trip_duration_minutes
+    from {{ ref('fact_trips') }}
+)
+
 select
-    f.pickup_location_id as location_id,
+    e.location_role,
+    e.location_id,
     l.borough,
     l.zone,
     l.service_zone,
-    count() as pickup_trip_count,
-    sum(f.total_amount) as pickup_revenue,
-    avg(f.trip_distance) as average_trip_distance,
-    avg(f.trip_duration_minutes) as average_trip_duration_minutes
-from {{ ref('fact_trips') }} as f
+    count() as trip_count,
+    sum(e.total_amount) as total_revenue,
+    avg(e.trip_distance) as average_trip_distance,
+    avg(e.trip_duration_minutes) as average_trip_duration_minutes
+from location_events as e
 left join {{ ref('dim_location') }} as l
-    on f.pickup_location_id = l.location_id
+    on e.location_id = l.location_id
 group by
-    f.pickup_location_id,
+    e.location_role,
+    e.location_id,
     l.borough,
     l.zone,
     l.service_zone

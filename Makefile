@@ -1,4 +1,4 @@
-.PHONY: lint format test test-unit test-integration docker-up docker-down docker-logs dataset-check ingest-bronze-sample transform-silver-sample create-clickhouse-tables load-clickhouse-sample pipeline-sample dbt-seed dbt-run dbt-test dbt-docs dbt-image-build dbt-image-push
+.PHONY: lint format test test-unit test-integration docker-up docker-down docker-logs dataset-check ingest-bronze-sample transform-silver-sample create-clickhouse-tables load-clickhouse-sample pipeline-sample dbt-seed dbt-run dbt-test dbt-docs dbt-image-build dbt-image-push superset-clickhouse-uri
 
 PYTHON ?= python
 DBT_DIR ?= dbt/nyc_taxi
@@ -65,3 +65,6 @@ dbt-image-build:
 
 dbt-image-push:
 	docker push $(DBT_IMAGE)
+
+superset-clickhouse-uri:
+	$(PYTHON) scripts/superset_clickhouse_uri.py --show-password

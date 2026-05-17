@@ -78,7 +78,7 @@ Primary key: `location_id`.
 
 | Mart | Grain | Business Question |
 | --- | --- | --- |
-| `mart_daily_revenue` | One row per pickup date | How do trips and revenue change over time? |
-| `mart_hourly_demand` | One row per pickup hour | Which pickup hours have the most demand? |
-| `mart_location_performance` | One row per pickup location | Which pickup zones produce the most trips and revenue? |
+| `mart_daily_revenue` | One row per pickup date and payment type | How do trips and revenue change over time and by payment type? |
+| `mart_hourly_demand` | One row per pickup hour and weekday | Which pickup hours and weekdays have the most demand? |
+| `mart_location_performance` | One row per pickup/dropoff role and location | Which pickup/dropoff zones produce the most trips and revenue? |
 | `mart_payment_summary` | One row per payment type | How does payment type affect tips and revenue? |

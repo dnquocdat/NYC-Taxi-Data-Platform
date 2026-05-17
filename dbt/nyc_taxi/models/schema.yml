@@ -186,36 +186,46 @@ models:
         description: "Tip amount in USD."
 
   - name: mart_daily_revenue
-    description: "Daily trip and revenue metrics for time-series dashboard charts."
+    description: "Daily trip and revenue metrics by payment type for time-series dashboard charts."
     columns:
       - name: date_id
         description: "Pickup date."
+      - name: payment_type_id
+        description: "Payment type ID for Superset filtering."
+      - name: payment_type_name
+        description: "Payment type label for Superset filtering."
       - name: trip_count
         description: "Number of trips."
       - name: total_revenue
         description: "Sum of total_amount."
 
   - name: mart_hourly_demand
-    description: "Trip demand and revenue by pickup hour."
+    description: "Trip demand and revenue by pickup hour and pickup weekday."
     columns:
       - name: hour_of_day
         description: "Pickup hour."
       - name: day_part
         description: "Coarse day-part bucket."
+      - name: day_of_week
+        description: "ClickHouse day-of-week number for heatmaps."
+      - name: day_name
+        description: "Weekday label for heatmaps."
       - name: trip_count
         description: "Number of trips."
 
   - name: mart_location_performance
-    description: "Pickup-zone demand, revenue, and trip performance metrics."
+    description: "Pickup and dropoff zone demand, revenue, and trip performance metrics."
     columns:
+      - name: location_role
+        description: "Whether the row describes pickup or dropoff demand."
       - name: location_id
-        description: "Pickup TLC zone ID."
+        description: "TLC zone ID."
       - name: borough
-        description: "Pickup borough."
+        description: "Borough."
       - name: zone
-        description: "Pickup zone name."
-      - name: pickup_trip_count
-        description: "Number of pickup trips."
+        description: "Zone name."
+      - name: trip_count
+        description: "Number of trips for the location role."
 
   - name: mart_payment_summary
     description: "Revenue and tip behavior summarized by payment type."

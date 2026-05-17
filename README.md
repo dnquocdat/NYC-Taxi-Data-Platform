@@ -72,6 +72,7 @@ make dbt-test
 make dbt-docs
 make dbt-image-build
 make dbt-image-push
+make superset-clickhouse-uri
 ```
 
 On Windows machines without `make`, run the equivalent commands directly:
@@ -95,6 +96,7 @@ dbt run --project-dir dbt/nyc_taxi --profiles-dir dbt/nyc_taxi
 dbt test --project-dir dbt/nyc_taxi --profiles-dir dbt/nyc_taxi
 docker build -f dbt/nyc_taxi/Dockerfile -t dnquocdat/nyc-taxi-dbt:latest .
 docker push dnquocdat/nyc-taxi-dbt:latest
+python scripts/superset_clickhouse_uri.py --show-password
 ```
 
 ## CI
@@ -319,6 +321,25 @@ Idempotency strategy:
 
 Airflow uses `_PIP_ADDITIONAL_REQUIREMENTS` from `.env` to install project runtime dependencies and `apache-airflow-providers-docker` into the stock Airflow 3 image at startup. This keeps the local stack simple; a later hardening step can replace it with a custom Airflow image for faster startup and pinned builds.
 
+## Superset Dashboard
+
+Superset connects directly to ClickHouse and should query dbt marts, not uploaded files. The dashboard setup guide is [docs/superset_dashboard.md](docs/superset_dashboard.md).
+
+Build the Superset image with the ClickHouse driver and start Superset:
+
+```bash
+docker compose --env-file .env build superset
+docker compose --env-file .env up -d superset
+```
+
+Generate the ClickHouse SQLAlchemy URI for Superset:
+
+```bash
+make superset-clickhouse-uri
+```
+
+The dashboard should include KPI cards, a trips/revenue time series with `payment_type_name` filtering, top pickup/dropoff zones, revenue by payment type, and an hourly demand heatmap.
+
 ## UI Access
 
 - MinIO Console: `http://localhost:9001`
@@ -333,5 +354,6 @@ Airflow uses `_PIP_ADDITIONAL_REQUIREMENTS` from `.env` to install project runti
 
 - [Design Doc](docs/design.md)
 - [Data Dictionary](docs/data_dictionary.md)
+- [Superset Dashboard](docs/superset_dashboard.md)
 - [Runbook](docs/runbook.md)
 - [Presentation Outline](docs/presentation_outline.md)
