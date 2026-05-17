@@ -53,6 +53,8 @@ python -m pip install -r requirements-dev.txt
 make lint
 make format
 make test
+make test-unit
+make test-integration
 make docker-up
 make docker-logs
 make docker-down
@@ -74,6 +76,8 @@ On Windows machines without `make`, run the equivalent commands directly:
 python -m ruff check src tests dags scripts
 python -m black --check src tests dags scripts
 python -m pytest
+python -m pytest tests/unit
+python -m pytest -m integration tests/integration
 docker compose --env-file .env up -d
 docker compose --env-file .env logs -f --tail=200
 docker compose --env-file .env down
@@ -144,6 +148,20 @@ Standard metrics include:
 - `invalid_records_count`
 - `duplicates_dropped`
 - `data_freshness_hours`
+
+## Testing
+
+Unit tests cover transformation logic without requiring Spark, Docker, or the NYC TLC dataset:
+
+```bash
+make test-unit
+```
+
+The integration test in `tests/integration/test_sample_pipeline.py` creates a tiny Parquet source programmatically and runs Bronze to Silver on local Delta paths. It is marked `integration` and `spark`; if optional Spark/Delta dependencies are not installed, pytest skips it with an explicit reason instead of downloading large data or starting the full Docker stack.
+
+```bash
+make test-integration
+```
 
 ## Bronze Ingestion
 

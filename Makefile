@@ -1,4 +1,4 @@
-.PHONY: lint format test docker-up docker-down docker-logs dataset-check ingest-bronze-sample transform-silver-sample create-clickhouse-tables load-clickhouse-sample pipeline-sample dbt-seed dbt-run dbt-test dbt-docs
+.PHONY: lint format test test-unit test-integration docker-up docker-down docker-logs dataset-check ingest-bronze-sample transform-silver-sample create-clickhouse-tables load-clickhouse-sample pipeline-sample dbt-seed dbt-run dbt-test dbt-docs
 
 PYTHON ?= python
 DBT_DIR ?= dbt/nyc_taxi
@@ -13,6 +13,12 @@ format:
 
 test:
 	$(PYTHON) -m pytest
+
+test-unit:
+	$(PYTHON) -m pytest tests/unit
+
+test-integration:
+	$(PYTHON) -m pytest -m integration tests/integration
 
 docker-up:
 	docker compose --env-file .env up -d
