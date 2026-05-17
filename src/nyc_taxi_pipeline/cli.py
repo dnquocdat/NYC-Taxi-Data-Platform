@@ -13,6 +13,7 @@ from nyc_taxi_pipeline.ingestion.source_discovery import discover_sources_from_c
 from nyc_taxi_pipeline.logging_utils import configure_logging, get_logger, log_event
 from nyc_taxi_pipeline.metrics import MetricsRecorder
 from nyc_taxi_pipeline.spark.bronze import ingest_bronze
+from nyc_taxi_pipeline.spark.clickhouse_load import load_silver_to_clickhouse
 from nyc_taxi_pipeline.spark.session import create_spark_session
 from nyc_taxi_pipeline.spark.silver import transform_silver
 
@@ -128,6 +129,34 @@ def transform_silver_command(batch_id: str | None) -> None:
         valid_records_count=result.valid_records_count,
         invalid_records_count=result.invalid_records_count,
         duplicates_dropped=result.duplicates_dropped,
+    )
+
+
+@main.command("load-clickhouse")
+@click.option("--batch-id", type=str, default=None, help="Pipeline batch id.")
+def load_clickhouse_command(batch_id: str | None) -> None:
+    """Load Silver Delta records into ClickHouse."""
+    config = load_config()
+    resolved_batch_id = batch_id or datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+    configure_logging(config.runtime.log_level)
+    logger = get_logger("nyc_taxi_pipeline.load_clickhouse")
+    spark = create_spark_session("nyc-taxi-load-clickhouse", config)
+    metrics_recorder = MetricsRecorder(config.runtime.metrics_output_path)
+    result = load_silver_to_clickhouse(
+        spark,
+        config,
+        resolved_batch_id,
+        logger=logger,
+        metrics_recorder=metrics_recorder,
+    )
+    log_event(
+        logger,
+        "clickhouse_cli_completed",
+        "load_clickhouse",
+        batch_id=resolved_batch_id,
+        table=result.table,
+        records_loaded=result.records_loaded,
+        affected_partitions=result.affected_partitions,
     )
 
 

@@ -51,6 +51,8 @@ Silver is partitioned by pickup year/month derived from `pickup_datetime` becaus
 
 ClickHouse is partitioned by `toYYYYMM(pickup_datetime)` and ordered by `pickup_date`, location IDs, and `trip_id` to support common dashboard filters.
 
+ClickHouse loads use partition-level replacement. The loader deletes affected `toYYYYMM(pickup_datetime)` partitions with synchronous mutations, then appends the current Silver records via Spark JDBC. This avoids duplicate rows on rerun and gives dbt/Superset deterministic query results.
+
 ## Failure Handling
 
 Invalid business records are written to Quarantine with `error_reason`, source metadata, and quarantine timestamp.

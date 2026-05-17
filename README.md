@@ -59,6 +59,8 @@ make docker-down
 make dataset-check
 make ingest-bronze-sample
 make transform-silver-sample
+make create-clickhouse-tables
+make load-clickhouse-sample
 make pipeline-sample
 make dbt-run
 make dbt-test
@@ -76,6 +78,8 @@ docker compose --env-file .env down
 python scripts/check_dataset_size.py
 python -m nyc_taxi_pipeline.cli ingest-bronze --start-month 2023-01 --end-month 2023-01 --sample-mode --skip-head
 python -m nyc_taxi_pipeline.cli transform-silver
+docker compose --env-file .env exec -T clickhouse clickhouse-client --queries-file /opt/project/scripts/create_clickhouse_tables.sql
+python -m nyc_taxi_pipeline.cli load-clickhouse
 ```
 
 ## Docker Stack
@@ -181,6 +185,26 @@ Run the transform after Bronze ingestion:
 ```bash
 python -m nyc_taxi_pipeline.cli transform-silver
 ```
+
+## ClickHouse Serving Load
+
+ClickHouse stores cleaned Silver records in `nyc_taxi.silver_yellow_taxi_trips`, created by [scripts/create_clickhouse_tables.sql](scripts/create_clickhouse_tables.sql).
+
+The table uses `MergeTree`, partitions by `toYYYYMM(pickup_datetime)`, and orders by `(pickup_date, pickup_location_id, dropoff_location_id, trip_id)`. This layout matches the dashboard and dbt access patterns: time-series analysis, location filters, and trip-level idempotency checks.
+
+Create the table:
+
+```bash
+make create-clickhouse-tables
+```
+
+Load Silver into ClickHouse:
+
+```bash
+python -m nyc_taxi_pipeline.cli load-clickhouse
+```
+
+The load is idempotent at the month-partition level. The loader reads affected `pickup_datetime` months from Silver, runs a ClickHouse `ALTER TABLE ... DELETE WHERE toYYYYMM(pickup_datetime) IN (...) SETTINGS mutations_sync = 2`, then appends the current Silver rows through Spark JDBC. This is more deterministic for dbt and Superset than relying on eventual background deduplication.
 
 ## UI Access
 

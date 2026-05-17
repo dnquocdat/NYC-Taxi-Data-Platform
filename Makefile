@@ -1,4 +1,4 @@
-.PHONY: lint format test docker-up docker-down docker-logs dataset-check ingest-bronze-sample transform-silver-sample pipeline-sample dbt-run dbt-test
+.PHONY: lint format test docker-up docker-down docker-logs dataset-check ingest-bronze-sample transform-silver-sample create-clickhouse-tables load-clickhouse-sample pipeline-sample dbt-run dbt-test
 
 PYTHON ?= python
 DBT_DIR ?= dbt/nyc_taxi
@@ -31,6 +31,12 @@ ingest-bronze-sample:
 
 transform-silver-sample:
 	$(PYTHON) -m nyc_taxi_pipeline.cli transform-silver
+
+create-clickhouse-tables:
+	docker compose --env-file .env exec -T clickhouse clickhouse-client --queries-file /opt/project/scripts/create_clickhouse_tables.sql
+
+load-clickhouse-sample:
+	$(PYTHON) -m nyc_taxi_pipeline.cli load-clickhouse
 
 pipeline-sample:
 	$(PYTHON) -m nyc_taxi_pipeline.cli run-sample

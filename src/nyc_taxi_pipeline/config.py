@@ -53,6 +53,7 @@ _LOCAL_DEFAULTS: dict[str, str] = {
     "SPARK_EXECUTOR_MEMORY": "2g",
     "SPARK_EXECUTOR_CORES": "2",
     "CLICKHOUSE_HOST": "clickhouse",
+    "CLICKHOUSE_PORT": "8123",
     "CLICKHOUSE_HTTP_PORT": "8123",
     "CLICKHOUSE_NATIVE_PORT": "9000",
     "CLICKHOUSE_DATABASE": "nyc_taxi",
@@ -298,7 +299,7 @@ def load_config(
         ),
         clickhouse=ClickHouseConfig(
             host=merged_env["CLICKHOUSE_HOST"],
-            http_port=int(merged_env["CLICKHOUSE_HTTP_PORT"]),
+            http_port=int(merged_env.get("CLICKHOUSE_PORT", merged_env["CLICKHOUSE_HTTP_PORT"])),
             native_port=int(merged_env["CLICKHOUSE_NATIVE_PORT"]),
             database=merged_env["CLICKHOUSE_DATABASE"],
             user=merged_env["CLICKHOUSE_USER"],

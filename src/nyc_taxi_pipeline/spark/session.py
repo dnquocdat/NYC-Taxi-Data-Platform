@@ -6,6 +6,11 @@ from typing import Any
 
 from nyc_taxi_pipeline.config import PipelineConfig, load_config
 
+SPARK_EXTRA_PACKAGES = [
+    "org.apache.hadoop:hadoop-aws:3.3.4",
+    "com.clickhouse:clickhouse-jdbc:0.6.4",
+]
+
 
 def create_spark_session(app_name: str, config: PipelineConfig | None = None) -> Any:
     """Create a SparkSession configured for Delta Lake and MinIO/S3A.
@@ -57,4 +62,7 @@ def create_spark_session(app_name: str, config: PipelineConfig | None = None) ->
             "spark.hadoop.fs.s3a.secret.key", resolved_config.storage.minio_secret_key
         )
 
-    return configure_spark_with_delta_pip(builder).getOrCreate()
+    return configure_spark_with_delta_pip(
+        builder,
+        extra_packages=SPARK_EXTRA_PACKAGES,
+    ).getOrCreate()
