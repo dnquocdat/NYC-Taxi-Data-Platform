@@ -79,19 +79,23 @@ services:
       - data-platform
 
   spark-master:
-    image: bitnami/spark:${SPARK_IMAGE_TAG:-3.5.1}
-    environment:
-      SPARK_MODE: master
-      SPARK_MASTER_HOST: ${SPARK_MASTER_HOST:-spark-master}
-      SPARK_MASTER_PORT_NUMBER: 7077
-      SPARK_MASTER_WEBUI_PORT: 8080
+    image: apache/spark:${SPARK_IMAGE_TAG:-3.5.1}
+    command:
+      - /opt/spark/bin/spark-class
+      - org.apache.spark.deploy.master.Master
+      - --host
+      - "0.0.0.0"
+      - --port
+      - "7077"
+      - --webui-port
+      - "8080"
     ports:
       - "${SPARK_MASTER_PORT:-7077}:7077"
       - "${SPARK_MASTER_UI_PORT:-18080}:8080"
     volumes:
-      - ./src:/opt/bitnami/spark/app/src
-      - ./configs:/opt/bitnami/spark/app/configs
-      - spark_events:/opt/bitnami/spark/events
+      - ./src:/opt/spark/app/src
+      - ./configs:/opt/spark/app/configs
+      - spark_events:/opt/spark/events
     healthcheck:
       test: ["CMD-SHELL", "bash -ec ': > /dev/tcp/127.0.0.1/7077'"]
       interval: 10s
@@ -101,19 +105,27 @@ services:
       - data-platform
 
   spark-worker:
-    image: bitnami/spark:${SPARK_IMAGE_TAG:-3.5.1}
+    image: apache/spark:${SPARK_IMAGE_TAG:-3.5.1}
+    command:
+      - /opt/spark/bin/spark-class
+      - org.apache.spark.deploy.worker.Worker
+      - spark://${SPARK_MASTER_HOST:-spark-master}:7077
+      - --webui-port
+      - "8081"
+      - --cores
+      - "${SPARK_WORKER_CORES:-2}"
+      - --memory
+      - "${SPARK_WORKER_MEMORY:-2g}"
     environment:
-      SPARK_MODE: worker
       SPARK_MASTER_URL: spark://${SPARK_MASTER_HOST:-spark-master}:7077
       SPARK_WORKER_MEMORY: ${SPARK_WORKER_MEMORY:-2g}
       SPARK_WORKER_CORES: ${SPARK_WORKER_CORES:-2}
-      SPARK_WORKER_WEBUI_PORT: 8081
     ports:
       - "${SPARK_WORKER_UI_PORT:-18081}:8081"
     volumes:
-      - ./src:/opt/bitnami/spark/app/src
-      - ./configs:/opt/bitnami/spark/app/configs
-      - spark_events:/opt/bitnami/spark/events
+      - ./src:/opt/spark/app/src
+      - ./configs:/opt/spark/app/configs
+      - spark_events:/opt/spark/events
     depends_on:
       spark-master:
         condition: service_healthy
