@@ -34,6 +34,12 @@ See [architecture.mmd](architecture.mmd).
 7. Build dbt dimensions, fact table, and analytics marts.
 8. Query marts from Superset.
 
+## Orchestration
+
+Airflow owns the end-to-end control flow in `nyc_taxi_monthly_pipeline`. The DAG is manually triggered with `start_month`, `end_month`, `sample_mode`, and `batch_id` params. It runs dataset validation, source availability checks, Bronze ingestion, Silver transformation, ClickHouse DDL/load, dbt seed/run/test, and a final structured success log.
+
+The DAG is idempotent by delegating duplicate protection to each layer: Bronze uses the ingestion manifest and controlled `source_url` replacement, Silver merges by deterministic `trip_id`, ClickHouse replaces affected pickup-month partitions, and dbt rebuilds serving models before running tests. `dbt_test` is intentionally upstream of the success task so failed quality checks block the pipeline.
+
 ## Modeling
 
 The core model is a star schema.

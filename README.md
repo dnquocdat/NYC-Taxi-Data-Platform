@@ -232,6 +232,56 @@ make dbt-test
 
 The header-only file is committed deliberately so the repo does not ship fake location data. dbt relationship tests will block bad or missing location mappings.
 
+## Airflow Orchestration
+
+The end-to-end DAG is [dags/nyc_taxi_pipeline_dag.py](dags/nyc_taxi_pipeline_dag.py) with `dag_id=nyc_taxi_monthly_pipeline`.
+
+Start the stack and open Airflow:
+
+```bash
+make docker-up
+```
+
+Airflow UI: `http://localhost:8080`
+
+Default local credentials come from `.env`:
+
+- username: `AIRFLOW_ADMIN_USER`
+- password: `AIRFLOW_ADMIN_PASSWORD`
+
+Trigger the DAG manually from the UI with JSON params:
+
+```json
+{
+  "start_month": "2023-01",
+  "end_month": "2023-12",
+  "sample_mode": false,
+  "batch_id": "manual_2023_full"
+}
+```
+
+For a fast smoke run:
+
+```json
+{
+  "start_month": "2023-01",
+  "end_month": "2023-01",
+  "sample_mode": true,
+  "batch_id": "manual_sample_202301"
+}
+```
+
+The DAG runs `validate_dataset_size`, `check_source_available`, `ingest_bronze`, `transform_silver`, `create_clickhouse_tables`, `load_clickhouse`, `dbt_seed`, `dbt_run`, `dbt_test`, and `log_pipeline_success`. It uses `retries=2`, `retry_delay=5 minutes`, `catchup=False`, and a manual schedule.
+
+Idempotency strategy:
+
+- Bronze skips source files already marked successful in the manifest and performs controlled delete-by-`source_url` before append.
+- Silver merges by deterministic `trip_id`, updating late-arriving rows only when the incoming `ingestion_timestamp` is newer.
+- ClickHouse deletes affected monthly partitions before inserting the current Silver rows.
+- dbt table models are rebuilt by dbt, and `dbt_test` blocks the success task if quality checks fail.
+
+Airflow uses `_PIP_ADDITIONAL_REQUIREMENTS` from `.env` to install the project runtime dependencies into the stock Airflow image at startup. This keeps Phase 9 simple and runnable; a later hardening step can replace it with a custom Airflow image for faster startup and pinned builds.
+
 ## UI Access
 
 - MinIO Console: `http://localhost:9001`
