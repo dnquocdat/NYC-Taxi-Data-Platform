@@ -7,6 +7,7 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
+import time
 from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
@@ -27,22 +28,56 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG_PATH)
     parser.add_argument("--env-file", type=Path, default=DEFAULT_ENV_FILE)
     parser.add_argument("--timeout-seconds", type=int, default=20)
+    parser.add_argument("--retries", type=int, default=3)
+    parser.add_argument("--retry-delay-seconds", type=float, default=2.0)
     return parser.parse_args()
 
 
-def check_url_available(url: str, timeout_seconds: int) -> None:
+def check_url_available(
+    url: str,
+    timeout_seconds: int,
+    *,
+    retries: int = 3,
+    retry_delay_seconds: float = 2.0,
+) -> None:
     """Raise a clear error if a source URL cannot be reached."""
-    request = Request(url, method="HEAD")
-    try:
-        with urlopen(request, timeout=timeout_seconds) as response:
-            status = getattr(response, "status", 200)
-    except (HTTPError, URLError, TimeoutError) as exc:
-        msg = f"Source URL is not available: {url}. Error: {exc}"
-        raise RuntimeError(msg) from exc
+    last_error: Exception | None = None
+    for attempt in range(1, retries + 1):
+        try:
+            status = _request_status(url, timeout_seconds, method="HEAD")
+        except (HTTPError, URLError, TimeoutError) as exc:
+            last_error = exc
+            try:
+                status = _request_status(
+                    url,
+                    timeout_seconds,
+                    method="GET",
+                    headers={"Range": "bytes=0-0"},
+                )
+            except (HTTPError, URLError, TimeoutError) as fallback_exc:
+                last_error = fallback_exc
+                if attempt < retries:
+                    time.sleep(retry_delay_seconds)
+                    continue
+                msg = f"Source URL is not available: {url}. Error: {last_error}"
+                raise RuntimeError(msg) from fallback_exc
+        break
 
     if status >= HTTP_BAD_REQUEST:
         msg = f"Source URL returned HTTP {status}: {url}"
         raise RuntimeError(msg)
+
+
+def _request_status(
+    url: str,
+    timeout_seconds: int,
+    *,
+    method: str,
+    headers: dict[str, str] | None = None,
+) -> int:
+    request = Request(url, headers=headers or {}, method=method)
+    with urlopen(request, timeout=timeout_seconds) as response:
+        return int(getattr(response, "status", 200))
 
 
 def main() -> int:
@@ -55,7 +90,12 @@ def main() -> int:
 
     for source in sources:
         try:
-            check_url_available(source.source_url, args.timeout_seconds)
+            check_url_available(
+                source.source_url,
+                args.timeout_seconds,
+                retries=args.retries,
+                retry_delay_seconds=args.retry_delay_seconds,
+            )
         except RuntimeError as exc:
             log_event(
                 logger,
