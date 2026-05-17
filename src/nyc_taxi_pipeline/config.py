@@ -34,9 +34,10 @@ _LOCAL_DEFAULTS: dict[str, str] = {
     "LOG_LEVEL": "INFO",
     "METRICS_OUTPUT_PATH": "metrics/pipeline_metrics.jsonl",
     "DATASET_START_MONTH": "2023-01",
-    "DATASET_END_MONTH": "2023-06",
+    "DATASET_END_MONTH": "2023-12",
     "SAMPLE_MODE": "false",
     "MIN_DATASET_RECORDS": "20000000",
+    "MIN_RAW_SIZE_GB": "10",
     "MIN_DATASET_RAW_BYTES": str(10 * 1024 * 1024 * 1024),
     "NYC_TLC_BASE_URL": "https://d37ci6vzurychx.cloudfront.net/trip-data",
     "TAXI_ZONE_LOOKUP_URL": "https://d37ci6vzurychx.cloudfront.net/misc/taxi_zone_lookup.csv",
@@ -67,6 +68,8 @@ class DatasetConfig:
     sample_mode: bool
     minimum_records: int
     minimum_raw_bytes: int
+    minimum_raw_size_gb: float
+    record_count_metadata: Mapping[str, int]
 
 
 @dataclass(frozen=True)
@@ -213,6 +216,22 @@ def load_config(
     storage = raw_config.get("storage", {})
     quality = raw_config.get("quality", {})
 
+    min_raw_size_gb = float(dataset.get("min_raw_size_gb", merged_env["MIN_RAW_SIZE_GB"]))
+    minimum_raw_bytes = int(
+        dataset.get(
+            "minimum_raw_bytes",
+            dataset.get("min_raw_bytes", merged_env.get("MIN_DATASET_RAW_BYTES", 0)),
+        )
+        or int(min_raw_size_gb * 1024 * 1024 * 1024)
+    )
+    if minimum_raw_bytes <= 0:
+        minimum_raw_bytes = int(min_raw_size_gb * 1024 * 1024 * 1024)
+
+    raw_record_count_metadata = dataset.get("record_count_metadata", {})
+    if not isinstance(raw_record_count_metadata, dict):
+        msg = "dataset.record_count_metadata must be a mapping of YYYY-MM to record count"
+        raise ValueError(msg)
+
     runtime = RuntimeConfig(
         project_name=str(project.get("name", merged_env["PROJECT_NAME"])),
         environment=str(project.get("environment", merged_env["ENVIRONMENT"])),
@@ -225,18 +244,30 @@ def load_config(
     return PipelineConfig(
         runtime=runtime,
         dataset=DatasetConfig(
-            name=str(dataset.get("name", "nyc_tlc_yellow_taxi")),
-            base_url=str(dataset.get("base_url", merged_env["NYC_TLC_BASE_URL"])),
+            name=str(dataset.get("dataset_name", dataset.get("name", "nyc_tlc_yellow_taxi"))),
+            base_url=str(
+                dataset.get(
+                    "source_base_url",
+                    dataset.get("base_url", merged_env["NYC_TLC_BASE_URL"]),
+                )
+            ),
             taxi_zone_lookup_url=str(
                 dataset.get("taxi_zone_lookup_url", merged_env["TAXI_ZONE_LOOKUP_URL"])
             ),
             start_month=str(dataset.get("start_month", merged_env["DATASET_START_MONTH"])),
             end_month=str(dataset.get("end_month", merged_env["DATASET_END_MONTH"])),
             sample_mode=as_bool(str(dataset.get("sample_mode", merged_env["SAMPLE_MODE"]))),
-            minimum_records=int(dataset.get("minimum_records", merged_env["MIN_DATASET_RECORDS"])),
-            minimum_raw_bytes=int(
-                dataset.get("minimum_raw_bytes", merged_env["MIN_DATASET_RAW_BYTES"])
+            minimum_records=int(
+                dataset.get(
+                    "min_record_count",
+                    dataset.get("minimum_records", merged_env["MIN_DATASET_RECORDS"]),
+                )
             ),
+            minimum_raw_bytes=minimum_raw_bytes,
+            minimum_raw_size_gb=min_raw_size_gb,
+            record_count_metadata={
+                str(month): int(count) for month, count in raw_record_count_metadata.items()
+            },
         ),
         storage=StorageConfig(
             bucket=str(storage.get("bucket", merged_env["S3_BUCKET"])),

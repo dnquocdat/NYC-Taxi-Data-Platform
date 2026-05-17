@@ -56,6 +56,7 @@ make test
 make docker-up
 make docker-logs
 make docker-down
+make dataset-check
 make pipeline-sample
 make dbt-run
 make dbt-test
@@ -70,6 +71,7 @@ python -m pytest
 docker compose --env-file .env up -d
 docker compose --env-file .env logs -f --tail=200
 docker compose --env-file .env down
+python scripts/check_dataset_size.py
 ```
 
 ## Docker Stack
@@ -103,6 +105,16 @@ Production/default runs must use enough NYC TLC Yellow Taxi monthly files to sat
 - at least 10 GiB raw data.
 
 Small samples are allowed only for unit and integration tests. A validation script will fail fast if the configured production month range does not meet the threshold.
+
+Run the dataset gate before a full pipeline run:
+
+```bash
+python scripts/check_dataset_size.py
+```
+
+The checker discovers NYC TLC Yellow Taxi Parquet URLs from `DATASET_START_MONTH` and `DATASET_END_MONTH`, then validates the selected files. It uses HTTP `HEAD` requests for `Content-Length` where available. Because public Parquet files are compressed and may not reach the 10 GiB raw-size threshold, `configs/pipeline.yml` also stores month-level record-count metadata for the default 2023 full-mode range.
+
+`SAMPLE_MODE=true` is only for CI, unit/integration tests, or a fast local smoke run. In sample mode the threshold is skipped with a warning log. Do not present sample mode as the production dataset.
 
 ## Configuration, Logging, and Metrics
 

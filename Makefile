@@ -1,4 +1,4 @@
-.PHONY: lint format test docker-up docker-down docker-logs pipeline-sample dbt-run dbt-test
+.PHONY: lint format test docker-up docker-down docker-logs dataset-check pipeline-sample dbt-run dbt-test
 
 PYTHON ?= python
 DBT_DIR ?= dbt/nyc_taxi
@@ -22,6 +22,9 @@ docker-down:
 
 docker-logs:
 	docker compose --env-file .env logs -f --tail=200
+
+dataset-check:
+	$(PYTHON) scripts/check_dataset_size.py
 
 pipeline-sample:
 	$(PYTHON) -m nyc_taxi_pipeline.cli run-sample

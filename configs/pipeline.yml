@@ -3,14 +3,27 @@ project:
   environment: local
 
 dataset:
-  name: nyc_tlc_yellow_taxi
-  base_url: ${NYC_TLC_BASE_URL}
+  dataset_name: nyc_tlc_yellow_taxi
+  source_base_url: ${NYC_TLC_BASE_URL}
   taxi_zone_lookup_url: ${TAXI_ZONE_LOOKUP_URL}
   start_month: ${DATASET_START_MONTH}
   end_month: ${DATASET_END_MONTH}
   sample_mode: ${SAMPLE_MODE}
-  minimum_records: ${MIN_DATASET_RECORDS}
-  minimum_raw_bytes: ${MIN_DATASET_RAW_BYTES}
+  min_raw_size_gb: ${MIN_RAW_SIZE_GB}
+  min_record_count: ${MIN_DATASET_RECORDS}
+  record_count_metadata:
+    "2023-01": 3066766
+    "2023-02": 2913955
+    "2023-03": 3403766
+    "2023-04": 3288250
+    "2023-05": 3513649
+    "2023-06": 3307234
+    "2023-07": 2907108
+    "2023-08": 2824209
+    "2023-09": 2846722
+    "2023-10": 3522285
+    "2023-11": 3339715
+    "2023-12": 3376567
 
 storage:
   bucket: ${S3_BUCKET}
@@ -32,4 +45,3 @@ quality:
   row_count_minimum: 1
   invalid_ratio_warning_threshold: 0.02
   freshness_warning_hours: 48
-
