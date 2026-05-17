@@ -48,6 +48,19 @@ Local setup should stay within five steps:
 
 The project currently includes the local Docker stack, Spark Bronze/Silver jobs, ClickHouse serving load, dbt star schema, Airflow orchestration, transformation tests, and CI checks.
 
+## Tech Stack
+
+| Layer | Technology | Role |
+| --- | --- | --- |
+| Source data | NYC TLC Yellow Taxi Trip Records, Taxi Zone Lookup | Public real-world trip and location data |
+| Storage | MinIO + Delta Lake | S3-compatible Bronze, Silver, and Quarantine lakehouse tables |
+| Processing | Apache Spark | Distributed ingestion, validation, deduplication, and transforms |
+| Orchestration | Apache Airflow 3 | End-to-end DAG with retries and explicit task boundaries |
+| Serving | ClickHouse | OLAP store for dbt and Superset queries |
+| Modeling | dbt + dbt-clickhouse | Star schema, marts, and data quality tests |
+| BI | Apache Superset | Dashboard layer connected directly to ClickHouse |
+| Engineering | Docker Compose, pytest, ruff, black, GitHub Actions | Local reproducibility, tests, linting, formatting, and CI |
+
 ## Commands
 
 ```bash
@@ -145,6 +158,17 @@ The checker discovers NYC TLC Yellow Taxi Parquet URLs from `DATASET_START_MONTH
 
 `SAMPLE_MODE=true` is only for CI, unit/integration tests, or a fast local smoke run. In sample mode the threshold is skipped with a warning log. Do not present sample mode as the production dataset.
 
+## Data Pipeline Flow
+
+The production flow is batch-oriented and month-based:
+
+1. `validate_dataset_size` discovers the configured NYC TLC monthly files and blocks full-mode runs that do not meet the dataset threshold.
+2. `ingest_bronze` reads source Parquet with Spark, adds lineage metadata, and writes Bronze Delta partitioned by source year/month.
+3. `transform_silver` standardizes schema, creates `trip_id`, derives analytical columns, validates business rules, deduplicates records, writes valid trips to Silver, and sends invalid rows to Quarantine.
+4. `load_clickhouse` replaces affected ClickHouse month partitions from the current Silver data.
+5. `dbt_seed`, `dbt_run`, and `dbt_test` build dimensions, `fact_trips`, analytics marts, and block bad serving outputs.
+6. Superset queries ClickHouse marts for dashboard charts.
+
 ## Configuration, Logging, and Metrics
 
 Pipeline jobs read configuration from `configs/pipeline.yml` plus environment variables. For local runs, copy `.env.example` to `.env`; process environment variables override values from `.env`.
@@ -158,8 +182,40 @@ Standard metrics include:
 - `job_duration_seconds`
 - `records_processed`
 - `invalid_records_count`
+- `invalid_records_ratio`
 - `duplicates_dropped`
 - `data_freshness_hours`
+
+## Data Quality Checks
+
+Quality is enforced in both Spark and dbt:
+
+- Spark validates required timestamps, positive distance, non-negative fare/total amount, and non-null pickup/dropoff locations.
+- Invalid Spark rows are written to Quarantine with `error_reason`, `quarantine_timestamp`, `batch_id`, and `source_file`.
+- Spark removes duplicate valid records by deterministic `trip_id`.
+- dbt tests check `trip_id` not null/unique, timestamp not null, location relationships, accepted payment values, and numeric range expressions.
+- Airflow treats failed dataset validation, failed transforms, failed ClickHouse load, and failed `dbt_test` as blocking failures.
+
+## Failure Modes Handled
+
+The platform explicitly handles:
+
+- unavailable source files through source checks and Airflow retries,
+- schema drift through required-column validation and clear errors,
+- schema-violating or bad business records through Quarantine,
+- duplicate records through manifest protection and `trip_id` deduplication,
+- late-arriving records through Silver merge/update by newer `ingestion_timestamp`,
+- ClickHouse reruns through month-partition replacement,
+- dbt test failures by blocking the final success task.
+
+## Idempotency
+
+Reruns are designed not to create duplicates:
+
+- Bronze manifest skips already successful `source_url` values and only replaces rows for the same source when needed.
+- Silver uses deterministic `trip_id` and Delta merge semantics.
+- ClickHouse deletes affected month partitions before reinserting the current Silver snapshot.
+- dbt rebuilds serving models and tests them before the dashboard is considered trusted.
 
 ## Testing
 
@@ -339,6 +395,23 @@ make superset-clickhouse-uri
 ```
 
 The dashboard should include KPI cards, a trips/revenue time series with `payment_type_name` filtering, top pickup/dropoff zones, revenue by payment type, and an hourly demand heatmap.
+
+## Limitations
+
+- Full production runs need enough local disk, memory, and network bandwidth for multi-month NYC TLC data.
+- Superset dashboard export is documented but not committed yet because it requires a running Superset metadata database with generated internal IDs.
+- The committed `taxi_zone_lookup.csv` is header-only to avoid fake production location data; download the official lookup before full dbt runs.
+- Airflow installs extra Python packages at startup through `_PIP_ADDITIONAL_REQUIREMENTS`; a custom pinned Airflow image would start faster and be more production-like.
+- The local Docker Compose deployment is for demonstration and development, not high availability.
+
+## Future Improvements
+
+- Version the Superset dashboard export after building it against a populated local environment.
+- Add lineage with OpenLineage or Marquez.
+- Add richer data quality reporting with Great Expectations or Soda.
+- Add a custom Airflow image with pinned dependencies.
+- Add Terraform or Helm for cloud deployment.
+- Add performance benchmarks for larger month ranges.
 
 ## UI Access
 
