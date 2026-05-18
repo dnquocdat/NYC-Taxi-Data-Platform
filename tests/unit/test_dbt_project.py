@@ -33,5 +33,5 @@ def test_fact_trips_documents_grain_and_has_quality_tests() -> None:
     assert "one row equals one validated yellow taxi trip" in fact_model["description"]
     assert "Primary key: trip_id" in fact_model["description"]
     assert {"trip_id", "pickup_datetime", "dropoff_datetime"} <= set(fact_columns)
-    assert len(fact_model["tests"]) >= 4
-    assert len(fact_columns["trip_id"]["tests"]) >= 2
+    assert len(fact_model["data_tests"]) >= 4
+    assert len(fact_columns["trip_id"]["data_tests"]) >= 2

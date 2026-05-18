@@ -2,6 +2,9 @@
 
 from pathlib import Path
 
+import pytest
+from scripts.create_clickhouse_tables import render_clickhouse_ddl
+
 from nyc_taxi_pipeline.config import ClickHouseConfig
 from nyc_taxi_pipeline.spark.clickhouse_load import (
     build_delete_partitions_query,
@@ -58,10 +61,17 @@ def test_delete_partitions_query_is_deterministic() -> None:
 
 def test_clickhouse_table_sql_declares_analytics_layout() -> None:
     """DDL should use the expected engine, partition key, and order key."""
-    sql = Path("scripts/create_clickhouse_tables.sql").read_text(encoding="utf-8")
+    sql_template = Path("scripts/create_clickhouse_tables.sql").read_text(encoding="utf-8")
+    sql = render_clickhouse_ddl(sql_template, database="analytics")
 
-    assert "CREATE DATABASE IF NOT EXISTS nyc_taxi" in sql
-    assert "CREATE TABLE IF NOT EXISTS nyc_taxi.silver_yellow_taxi_trips" in sql
+    assert "CREATE DATABASE IF NOT EXISTS analytics" in sql
+    assert "CREATE TABLE IF NOT EXISTS analytics.silver_yellow_taxi_trips" in sql
     assert "ENGINE = MergeTree" in sql
     assert "PARTITION BY toYYYYMM(pickup_datetime)" in sql
     assert "ORDER BY (pickup_date, pickup_location_id, dropoff_location_id, trip_id)" in sql
+
+
+def test_clickhouse_ddl_rejects_invalid_database_identifier() -> None:
+    """DDL rendering should not interpolate unsafe database identifiers."""
+    with pytest.raises(ValueError, match="Invalid ClickHouse database identifier"):
+        render_clickhouse_ddl("CREATE DATABASE {database};", database="bad-name")
