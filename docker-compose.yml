@@ -1,7 +1,12 @@
 name: ${PROJECT_NAME:-nyc-taxi-data-platform}
 
 x-airflow-common: &airflow-common
-  image: apache/airflow:${AIRFLOW_IMAGE_TAG:-3.1.0}
+  build:
+    context: .
+    dockerfile: airflow/Dockerfile
+    args:
+      AIRFLOW_IMAGE_TAG: ${AIRFLOW_IMAGE_TAG:-3.1.0}
+  image: ${PROJECT_NAME:-nyc-taxi-data-platform}-airflow:${AIRFLOW_IMAGE_TAG:-3.1.0}
   environment:
     AIRFLOW__CORE__EXECUTOR: LocalExecutor
     AIRFLOW__CORE__AUTH_MANAGER: airflow.providers.fab.auth_manager.fab_auth_manager.FabAuthManager
@@ -15,6 +20,7 @@ x-airflow-common: &airflow-common
     AIRFLOW_ADMIN_USER: ${AIRFLOW_ADMIN_USER}
     AIRFLOW_ADMIN_PASSWORD: ${AIRFLOW_ADMIN_PASSWORD}
     AIRFLOW_ADMIN_EMAIL: ${AIRFLOW_ADMIN_EMAIL}
+    JAVA_HOME: /usr/lib/jvm/java-17-openjdk-amd64
     NYC_TAXI_PROJECT_DIR: /opt/airflow/project
     PYTHONPATH: /opt/airflow/project/src
     DBT_IMAGE: ${DBT_IMAGE:-dnquocdat/nyc-taxi-dbt:latest}
@@ -25,7 +31,7 @@ x-airflow-common: &airflow-common
     CLICKHOUSE_DATABASE: ${CLICKHOUSE_DATABASE}
     CLICKHOUSE_USER: ${CLICKHOUSE_USER}
     CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
-    _PIP_ADDITIONAL_REQUIREMENTS: ${AIRFLOW_PIP_ADDITIONAL_REQUIREMENTS:-apache-airflow-providers-docker>=4.4.0 pydantic>=2.7 PyYAML>=6.0 requests>=2.32 delta-spark>=3.2,<4.0 pyarrow>=15.0 pyspark>=3.5,<3.6}
+    SOURCE_STAGING_DIR: ${SOURCE_STAGING_DIR:-/opt/shared/source_cache}
   user: "${AIRFLOW_UID:-50000}:0"
   volumes:
     - ./dags:/opt/airflow/dags
@@ -34,13 +40,28 @@ x-airflow-common: &airflow-common
     - .:/opt/airflow/project
     - /var/run/docker.sock:/var/run/docker.sock
     - airflow_logs:/opt/airflow/logs
+    - source_cache:/opt/shared/source_cache
   networks:
     - data-platform
   depends_on:
+    source-cache-init:
+      condition: service_completed_successfully
     airflow-postgres:
       condition: service_healthy
 
 services:
+  source-cache-init:
+    image: busybox:1.36
+    command: >
+      sh -c "mkdir -p /opt/shared/source_cache
+      && chown -R ${AIRFLOW_UID:-50000}:0 /opt/shared/source_cache
+      && chmod -R g+rwX /opt/shared/source_cache"
+    volumes:
+      - source_cache:/opt/shared/source_cache
+    restart: "no"
+    networks:
+      - data-platform
+
   minio:
     image: minio/minio:${MINIO_IMAGE_TAG:-RELEASE.2025-04-22T22-12-26Z}
     command: server /data --console-address ":9001"
@@ -96,6 +117,7 @@ services:
       - ./src:/opt/spark/app/src
       - ./configs:/opt/spark/app/configs
       - spark_events:/opt/spark/events
+      - source_cache:/opt/shared/source_cache
     healthcheck:
       test: ["CMD-SHELL", "bash -ec ': > /dev/tcp/127.0.0.1/7077'"]
       interval: 10s
@@ -126,6 +148,7 @@ services:
       - ./src:/opt/spark/app/src
       - ./configs:/opt/spark/app/configs
       - spark_events:/opt/spark/events
+      - source_cache:/opt/shared/source_cache
     depends_on:
       spark-master:
         condition: service_healthy
@@ -282,4 +305,5 @@ volumes:
   clickhouse_logs:
   airflow_postgres_data:
   airflow_logs:
+  source_cache:
   superset_home:

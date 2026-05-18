@@ -48,6 +48,7 @@ _LOCAL_DEFAULTS: dict[str, str] = {
     "SILVER_DELTA_PATH": "s3a://nyc-taxi/silver/yellow_taxi_trips",
     "QUARANTINE_DELTA_PATH": "s3a://nyc-taxi/quarantine/yellow_taxi_trips",
     "INGESTION_MANIFEST_PATH": "manifests/bronze_ingestion_manifest.jsonl",
+    "SOURCE_STAGING_DIR": "tmp/source_cache",
     "SPARK_MASTER_URL": "spark://spark-master:7077",
     "SPARK_DRIVER_MEMORY": "2g",
     "SPARK_EXECUTOR_MEMORY": "2g",
@@ -88,6 +89,7 @@ class StorageConfig:
     quarantine_path: str
     metrics_path: str
     ingestion_manifest_path: Path
+    source_staging_dir: Path
     minio_endpoint: str
     minio_access_key: str | None
     minio_secret_key: str | None
@@ -286,6 +288,9 @@ def load_config(
             metrics_path=str(storage.get("metrics_path")),
             ingestion_manifest_path=Path(
                 storage.get("ingestion_manifest_path", merged_env["INGESTION_MANIFEST_PATH"])
+            ),
+            source_staging_dir=Path(
+                storage.get("source_staging_dir", merged_env["SOURCE_STAGING_DIR"])
             ),
             minio_endpoint=merged_env["MINIO_ENDPOINT"],
             minio_access_key=_as_optional(merged_env.get("MINIO_ROOT_USER")),

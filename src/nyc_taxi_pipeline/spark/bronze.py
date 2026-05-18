@@ -9,6 +9,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from nyc_taxi_pipeline.config import PipelineConfig
+from nyc_taxi_pipeline.ingestion.download import stage_source_file
 from nyc_taxi_pipeline.ingestion.manifest import (
     IngestionManifest,
     ManifestEntry,
@@ -74,6 +75,18 @@ def add_bronze_metadata_columns(dataframe: Any, source: SourceFile, batch_id: st
         .withColumn("batch_id", func.lit(metadata["batch_id"]))
         .withColumn("dataset_year", func.lit(metadata["dataset_year"]))
         .withColumn("dataset_month", func.lit(metadata["dataset_month"]))
+    )
+
+
+def coerce_raw_columns_to_string(dataframe: Any) -> Any:
+    """Preserve raw values with stable Bronze column types across monthly files."""
+    from pyspark.sql import functions as func  # noqa: PLC0415
+
+    return dataframe.select(
+        *[
+            func.col(column_name).cast("string").alias(column_name)
+            for column_name in dataframe.columns
+        ]
     )
 
 
@@ -157,9 +170,11 @@ def _ingest_one_source(
     logger: logging.Logger | None,
 ) -> BronzeSourceResult:
     try:
-        raw_dataframe = spark.read.parquet(source.source_url)
+        staged_path = stage_source_file(source.source_url, config.storage.source_staging_dir)
+        raw_dataframe = spark.read.parquet(staged_path.resolve().as_uri())
         records_read = raw_dataframe.count()
-        bronze_dataframe = add_bronze_metadata_columns(raw_dataframe, source, batch_id)
+        stable_raw_dataframe = coerce_raw_columns_to_string(raw_dataframe)
+        bronze_dataframe = add_bronze_metadata_columns(stable_raw_dataframe, source, batch_id)
         _delete_existing_source_rows(spark, config.storage.bronze_path, source.source_url)
         (
             bronze_dataframe.write.format("delta")

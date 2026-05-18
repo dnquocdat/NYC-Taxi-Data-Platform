@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Iterable
+from contextlib import nullcontext
 from dataclasses import dataclass
 from typing import Any
 from urllib.error import HTTPError, URLError
@@ -136,10 +137,12 @@ def load_silver_to_clickhouse(
             clickhouse_table=CLICKHOUSE_TABLE,
         )
 
-    timer = metrics_recorder.timer(JOB_NAME, batch_id=batch_id) if metrics_recorder else None
-    if timer is not None:
-        timer.__enter__()
-    try:
+    timer = (
+        metrics_recorder.timer(JOB_NAME, batch_id=batch_id)
+        if metrics_recorder is not None
+        else nullcontext()
+    )
+    with timer:
         silver_dataframe = spark.read.format("delta").load(config.storage.silver_path)
         clickhouse_dataframe = select_clickhouse_columns(silver_dataframe)
         affected_partitions = collect_affected_partitions(clickhouse_dataframe)
@@ -151,13 +154,6 @@ def load_silver_to_clickhouse(
         )
         execute_clickhouse_query(config.clickhouse, delete_query)
         write_dataframe_to_clickhouse(clickhouse_dataframe, config.clickhouse)
-    except Exception:
-        if timer is not None:
-            timer.__exit__(*__import__("sys").exc_info())
-        raise
-    else:
-        if timer is not None:
-            timer.__exit__(None, None, None)
 
     if metrics_recorder is not None:
         metrics_recorder.record(JOB_NAME, "records_loaded", records_loaded, batch_id=batch_id)

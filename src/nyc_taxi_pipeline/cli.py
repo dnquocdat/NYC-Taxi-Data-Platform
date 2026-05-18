@@ -35,7 +35,7 @@ def main() -> None:
 def run_sample(work_dir: Path, batch_id: str | None) -> None:
     """Run a tiny local Bronze to Silver sample path without downloading TLC data."""
     resolved_batch_id = batch_id or datetime.now(UTC).strftime("sample_%Y%m%dT%H%M%SZ")
-    run_dir = work_dir / resolved_batch_id
+    run_dir = work_dir.resolve() / resolved_batch_id
     source_path = run_dir / "source_yellow_taxi"
     bronze_path = run_dir / "bronze_delta"
     silver_path = run_dir / "silver_delta"
@@ -160,14 +160,17 @@ def ingest_bronze_command(
 
     spark = create_spark_session("nyc-taxi-ingest-bronze", config)
     metrics_recorder = MetricsRecorder(config.runtime.metrics_output_path)
-    result = ingest_bronze(
-        spark,
-        sources,
-        config,
-        resolved_batch_id,
-        logger=logger,
-        metrics_recorder=metrics_recorder,
-    )
+    try:
+        result = ingest_bronze(
+            spark,
+            sources,
+            config,
+            resolved_batch_id,
+            logger=logger,
+            metrics_recorder=metrics_recorder,
+        )
+    finally:
+        spark.stop()
     log_event(
         logger,
         "bronze_cli_completed",
@@ -190,13 +193,16 @@ def transform_silver_command(batch_id: str | None) -> None:
     logger = get_logger("nyc_taxi_pipeline.transform_silver")
     spark = create_spark_session("nyc-taxi-transform-silver", config)
     metrics_recorder = MetricsRecorder(config.runtime.metrics_output_path)
-    result = transform_silver(
-        spark,
-        config,
-        resolved_batch_id,
-        logger=logger,
-        metrics_recorder=metrics_recorder,
-    )
+    try:
+        result = transform_silver(
+            spark,
+            config,
+            resolved_batch_id,
+            logger=logger,
+            metrics_recorder=metrics_recorder,
+        )
+    finally:
+        spark.stop()
     log_event(
         logger,
         "silver_cli_completed",
@@ -219,13 +225,16 @@ def load_clickhouse_command(batch_id: str | None) -> None:
     logger = get_logger("nyc_taxi_pipeline.load_clickhouse")
     spark = create_spark_session("nyc-taxi-load-clickhouse", config)
     metrics_recorder = MetricsRecorder(config.runtime.metrics_output_path)
-    result = load_silver_to_clickhouse(
-        spark,
-        config,
-        resolved_batch_id,
-        logger=logger,
-        metrics_recorder=metrics_recorder,
-    )
+    try:
+        result = load_silver_to_clickhouse(
+            spark,
+            config,
+            resolved_batch_id,
+            logger=logger,
+            metrics_recorder=metrics_recorder,
+        )
+    finally:
+        spark.stop()
     log_event(
         logger,
         "clickhouse_cli_completed",

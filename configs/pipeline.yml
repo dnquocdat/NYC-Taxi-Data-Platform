@@ -33,6 +33,7 @@ storage:
   quarantine_path: ${QUARANTINE_DELTA_PATH}
   metrics_path: ${S3_WAREHOUSE_PATH}/metrics/pipeline_runs
   ingestion_manifest_path: ${INGESTION_MANIFEST_PATH}
+  source_staging_dir: ${SOURCE_STAGING_DIR}
 
 partitioning:
   bronze:

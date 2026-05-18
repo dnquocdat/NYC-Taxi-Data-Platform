@@ -3,29 +3,8 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
-
-
-@dataclass(frozen=True)
-class ValidationRule:
-    """Business validation rule metadata."""
-
-    name: str
-    error_reason: str
-
-
-VALIDATION_RULES: tuple[ValidationRule, ...] = (
-    ValidationRule("pickup_datetime_not_null", "pickup_datetime is null"),
-    ValidationRule("dropoff_datetime_not_null", "dropoff_datetime is null"),
-    ValidationRule("dropoff_after_pickup", "dropoff_datetime <= pickup_datetime"),
-    ValidationRule("trip_distance_positive", "trip_distance <= 0"),
-    ValidationRule("fare_amount_non_negative", "fare_amount < 0"),
-    ValidationRule("total_amount_non_negative", "total_amount < 0"),
-    ValidationRule("pickup_location_id_not_null", "pickup_location_id is null"),
-    ValidationRule("dropoff_location_id_not_null", "dropoff_location_id is null"),
-)
 
 
 def validate_trip_record(record: Mapping[str, Any]) -> list[str]:

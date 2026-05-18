@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import logging
 from collections.abc import Mapping, Sequence
+from contextlib import nullcontext
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
@@ -103,10 +104,12 @@ def transform_silver(
             quarantine_path=config.storage.quarantine_path,
         )
 
-    timer = metrics_recorder.timer(JOB_NAME, batch_id=batch_id) if metrics_recorder else None
-    if timer is not None:
-        timer.__enter__()
-    try:
+    timer = (
+        metrics_recorder.timer(JOB_NAME, batch_id=batch_id)
+        if metrics_recorder is not None
+        else nullcontext()
+    )
+    with timer:
         bronze_dataframe = spark.read.format("delta").load(config.storage.bronze_path)
         normalized_dataframe = normalize_bronze_dataframe(bronze_dataframe)
         enriched_dataframe = add_silver_columns(normalized_dataframe)
@@ -130,13 +133,6 @@ def transform_silver(
             deduplicated_dataframe.drop("is_valid"),
             config.storage.silver_path,
         )
-    except Exception:
-        if timer is not None:
-            timer.__exit__(*__import__("sys").exc_info())
-        raise
-    else:
-        if timer is not None:
-            timer.__exit__(None, None, None)
 
     invalid_records_ratio = invalid_records_count / records_read if records_read else 0.0
     if metrics_recorder is not None:
