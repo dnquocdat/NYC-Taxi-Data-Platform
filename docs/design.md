@@ -138,7 +138,7 @@ dbt tests block downstream trust. Airflow retries transient task failures, but p
 
 Docker Compose keeps the project runnable and inspectable in one week, but it is not a production deployment pattern. MinIO + Delta Lake gives an open lakehouse path without cloud dependencies, at the cost of more Spark/S3A configuration. ClickHouse is fast for BI and simple to run locally, but mutations for partition replacement should be monitored at larger scale.
 
-The taxi zone seed committed in the repo is header-only to avoid fake production lookup data. Full demo runs should download the official NYC TLC lookup before `dbt seed`.
+The taxi zone seed committed in the repo uses the official NYC TLC lookup data so dbt relationship tests can validate pickup and dropoff mappings during full demo runs.
 
 Superset dashboard creation is documented manually. A committed export would be better, but export IDs depend on a running Superset metadata database and populated ClickHouse tables.
 
@@ -155,7 +155,6 @@ For cloud deployment, costs would shift to object storage, Spark compute, ClickH
 ## Improvements With More Time
 
 - Export and version a Superset dashboard after building it against a populated environment.
-- Replace Airflow startup package installation with a custom pinned Airflow image.
 - Add Great Expectations or Soda quality reports alongside dbt tests.
 - Add OpenLineage or Marquez for lineage.
 - Add Terraform or Helm for a cloud deployment.

@@ -59,12 +59,11 @@ Target duration: 20 minutes plus Q&A.
 - Docker Compose is reproducible and explainable, but not high availability.
 - Superset dashboard export is manual until built against a populated running instance.
 - Local full runs may be constrained by disk, memory, and network bandwidth.
-- The committed taxi zone lookup is header-only; full runs should download the official lookup before `dbt seed`.
+- The committed taxi zone lookup uses the official seed, so dbt relationship tests can validate location mappings.
 
 ## 9. Improvements - 1 minute
 
 - Export/version Superset dashboard assets.
-- Build a custom pinned Airflow image.
 - Add lineage with OpenLineage/Marquez.
 - Add Great Expectations or Soda reports.
 - Add cloud deployment with Terraform or Helm.

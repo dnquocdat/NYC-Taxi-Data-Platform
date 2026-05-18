@@ -15,7 +15,7 @@ make dbt-run
 make dbt-test
 ```
 
-For production-style location charts, replace `dbt/nyc_taxi/seeds/taxi_zone_lookup.csv` with the official NYC TLC lookup file before `make dbt-seed`.
+The committed `dbt/nyc_taxi/seeds/taxi_zone_lookup.csv` contains the official NYC TLC lookup data used by location charts and dbt relationship tests.
 
 ## ClickHouse Driver
 

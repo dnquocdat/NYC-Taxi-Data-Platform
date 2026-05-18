@@ -66,6 +66,7 @@ The project currently includes the local Docker stack, Spark Bronze/Silver jobs,
 ```bash
 python -m pip install -r requirements-dev.txt
 make lint
+make format-check
 make format
 make test
 make test-unit
@@ -102,7 +103,7 @@ docker compose --env-file .env down
 python scripts/check_dataset_size.py
 python -m nyc_taxi_pipeline.cli ingest-bronze --start-month 2023-01 --end-month 2023-01 --sample-mode --skip-head
 python -m nyc_taxi_pipeline.cli transform-silver
-docker compose --env-file .env exec -T clickhouse clickhouse-client --queries-file /opt/project/scripts/create_clickhouse_tables.sql
+python scripts/create_clickhouse_tables.py
 python -m nyc_taxi_pipeline.cli load-clickhouse
 dbt seed --project-dir dbt/nyc_taxi --profiles-dir dbt/nyc_taxi
 dbt run --project-dir dbt/nyc_taxi --profiles-dir dbt/nyc_taxi
@@ -279,7 +280,7 @@ python -m nyc_taxi_pipeline.cli transform-silver
 
 ## ClickHouse Serving Load
 
-ClickHouse stores cleaned Silver records in `nyc_taxi.silver_yellow_taxi_trips`, created by [scripts/create_clickhouse_tables.sql](scripts/create_clickhouse_tables.sql).
+ClickHouse stores cleaned Silver records in `${CLICKHOUSE_DATABASE}.silver_yellow_taxi_trips`, created by [scripts/create_clickhouse_tables.py](scripts/create_clickhouse_tables.py) from the DDL template in [scripts/create_clickhouse_tables.sql](scripts/create_clickhouse_tables.sql).
 
 The table uses `MergeTree`, partitions by `toYYYYMM(pickup_datetime)`, and orders by `(pickup_date, pickup_location_id, dropoff_location_id, trip_id)`. This layout matches the dashboard and dbt access patterns: time-series analysis, location filters, and trip-level idempotency checks.
 
@@ -307,7 +308,7 @@ dbt models live in [dbt/nyc_taxi](dbt/nyc_taxi). The project reads `nyc_taxi.sil
 
 `fact_trips` grain is one row per validated taxi trip, with `trip_id` as the primary key.
 
-Before production dbt runs, replace the header-only `dbt/nyc_taxi/seeds/taxi_zone_lookup.csv` with the official NYC TLC Taxi Zone Lookup file:
+The committed `dbt/nyc_taxi/seeds/taxi_zone_lookup.csv` is the official NYC TLC Taxi Zone Lookup seed used by dbt relationship tests. To refresh it from the source file:
 
 ```bash
 curl -L "https://d37ci6vzurychx.cloudfront.net/misc/taxi_zone_lookup.csv" -o dbt/nyc_taxi/seeds/taxi_zone_lookup.csv
@@ -316,7 +317,7 @@ make dbt-run
 make dbt-test
 ```
 
-The header-only file is committed deliberately so the repo does not ship fake location data. dbt relationship tests will block bad or missing location mappings.
+dbt relationship tests block bad or missing location mappings before dashboard tables are trusted.
 
 The Airflow DAG does not run dbt directly inside the Airflow image. dbt is packaged as a dedicated Docker image:
 
@@ -375,7 +376,7 @@ Idempotency strategy:
 - ClickHouse deletes affected monthly partitions before inserting the current Silver rows.
 - dbt table models are rebuilt by dbt inside the published dbt Docker image, and `dbt_test` blocks the success task if quality checks fail.
 
-Airflow uses `_PIP_ADDITIONAL_REQUIREMENTS` from `.env` to install project runtime dependencies and `apache-airflow-providers-docker` into the stock Airflow 3 image at startup. This keeps the local stack simple; a later hardening step can replace it with a custom Airflow image for faster startup and pinned builds.
+Airflow uses the local [airflow/Dockerfile](airflow/Dockerfile), which installs Java, Spark/Delta dependencies, and `apache-airflow-providers-docker` at image build time. This avoids startup-time `pip install` work and keeps local runs closer to pinned production images.
 
 ## Superset Dashboard
 
@@ -400,8 +401,6 @@ The dashboard should include KPI cards, a trips/revenue time series with `paymen
 
 - Full production runs need enough local disk, memory, and network bandwidth for multi-month NYC TLC data.
 - Superset dashboard export is documented but not committed yet because it requires a running Superset metadata database with generated internal IDs.
-- The committed `taxi_zone_lookup.csv` is header-only to avoid fake production location data; download the official lookup before full dbt runs.
-- Airflow installs extra Python packages at startup through `_PIP_ADDITIONAL_REQUIREMENTS`; a custom pinned Airflow image would start faster and be more production-like.
 - The local Docker Compose deployment is for demonstration and development, not high availability.
 
 ## Future Improvements
@@ -409,7 +408,6 @@ The dashboard should include KPI cards, a trips/revenue time series with `paymen
 - Version the Superset dashboard export after building it against a populated local environment.
 - Add lineage with OpenLineage or Marquez.
 - Add richer data quality reporting with Great Expectations or Soda.
-- Add a custom Airflow image with pinned dependencies.
 - Add Terraform or Helm for cloud deployment.
 - Add performance benchmarks for larger month ranges.
 

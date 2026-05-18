@@ -57,9 +57,9 @@ Use this runbook when the Airflow DAG, local commands, or dashboard data look wr
 | Field | Details |
 | --- | --- |
 | Symptom | Airflow `dbt_test` task fails and `log_pipeline_success` does not run. |
-| Likely cause | Duplicate `trip_id`, missing taxi zone lookup rows, invalid numeric values reaching serving, or model logic regression. |
+| Likely cause | Duplicate `trip_id`, stale taxi zone lookup rows, invalid numeric values reaching serving, or model logic regression. |
 | Detection signal | dbt test output names the failed model/column/test; Airflow task exits non-zero. |
-| Recovery steps | Inspect dbt failure output; for relationship failures, download the official taxi zone lookup and rerun `dbt seed`; for fact failures, inspect Silver/Quarantine and patch Spark validation or dbt model logic; rerun `dbt run` and `dbt test`. |
+| Recovery steps | Inspect dbt failure output; for relationship failures, refresh the official taxi zone lookup seed and rerun `dbt seed`; for fact failures, inspect Silver/Quarantine and patch Spark validation or dbt model logic; rerun `dbt run` and `dbt test`. |
 | Prevention | Keep tests in CI where possible and run `dbt test` before dashboard demos. |
 
 ## Failure Mode 7: Airflow Timeout Or Stuck Task
@@ -67,10 +67,10 @@ Use this runbook when the Airflow DAG, local commands, or dashboard data look wr
 | Field | Details |
 | --- | --- |
 | Symptom | A task stays running too long, retries repeatedly, or the Airflow UI cannot show fresh logs. |
-| Likely cause | Docker resource limits, Spark job contention, network slowness, first-time Airflow dependency install, or DockerOperator waiting on an image pull. |
-| Detection signal | Airflow task duration exceeds normal run time, Docker logs show slow package install or image pull, host CPU/memory is saturated. |
+| Likely cause | Docker resource limits, Spark job contention, network slowness, stale local images, or DockerOperator waiting on an image pull. |
+| Detection signal | Airflow task duration exceeds normal run time, Docker logs show slow image build/pull, or host CPU/memory is saturated. |
 | Recovery steps | Check `docker compose logs airflow-scheduler airflow-apiserver`; verify Docker Desktop resources; rerun after the dbt image has been pulled; reduce the month range for local testing. |
-| Prevention | Pre-pull Docker images before demos and consider a custom Airflow image for pinned dependencies. |
+| Prevention | Build the local Airflow image and pre-pull the dbt image before demos. |
 
 ## Failure Mode 8: MinIO Unavailable
 
