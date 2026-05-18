@@ -19,9 +19,9 @@ dependencies = [
 
 [project.optional-dependencies]
 spark = [
-    "delta-spark>=3.2,<4.0",
+    "delta-spark==3.2.0",
     "pyarrow>=15.0",
-    "pyspark>=3.5,<3.6",
+    "pyspark==3.5.1",
 ]
 serving = [
     "clickhouse-connect>=0.7",
@@ -71,4 +71,3 @@ markers = [
     "integration: tests that exercise multiple pipeline components",
     "spark: tests that require a Spark runtime",
 ]
-

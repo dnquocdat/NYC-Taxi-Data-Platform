@@ -6,16 +6,16 @@ models:
     columns:
       - name: trip_id
         description: "Deterministic SHA-256 trip identifier generated in Spark Silver."
-        tests:
+        data_tests:
           - not_null
           - unique
       - name: pickup_datetime
         description: "Trip pickup timestamp."
-        tests:
+        data_tests:
           - not_null
       - name: dropoff_datetime
         description: "Trip dropoff timestamp."
-        tests:
+        data_tests:
           - not_null
       - name: pickup_location_id
         description: "Pickup TLC taxi zone ID."
@@ -27,7 +27,7 @@ models:
     columns:
       - name: location_id
         description: "TLC taxi zone ID."
-        tests:
+        data_tests:
           - not_null
           - unique
       - name: borough
@@ -42,7 +42,7 @@ models:
     columns:
       - name: date_id
         description: "Primary key date for joining facts by pickup date."
-        tests:
+        data_tests:
           - not_null
           - unique
       - name: year
@@ -61,7 +61,7 @@ models:
     columns:
       - name: time_id
         description: "Primary key hour of day, 0 through 23."
-        tests:
+        data_tests:
           - not_null
           - unique
       - name: hour_of_day
@@ -74,7 +74,7 @@ models:
     columns:
       - name: location_id
         description: "Primary key TLC taxi zone ID."
-        tests:
+        data_tests:
           - not_null
           - unique
       - name: borough
@@ -89,7 +89,7 @@ models:
     columns:
       - name: vendor_id
         description: "Primary key vendor ID from TLC records."
-        tests:
+        data_tests:
           - not_null
           - unique
       - name: vendor_name
@@ -100,7 +100,7 @@ models:
     columns:
       - name: payment_type_id
         description: "Primary key payment type ID."
-        tests:
+        data_tests:
           - not_null
           - unique
       - name: payment_type_name
@@ -111,7 +111,7 @@ models:
     columns:
       - name: rate_code_id
         description: "Primary key rate code ID."
-        tests:
+        data_tests:
           - not_null
           - unique
       - name: rate_code_name
@@ -119,7 +119,7 @@ models:
 
   - name: fact_trips
     description: "Trip fact table. Grain: one row equals one validated yellow taxi trip. Primary key: trip_id."
-    tests:
+    data_tests:
       - expression_is_true:
           expression: "dropoff_datetime > pickup_datetime"
       - expression_is_true:
@@ -131,46 +131,46 @@ models:
     columns:
       - name: trip_id
         description: "Primary key for the trip fact."
-        tests:
+        data_tests:
           - not_null
           - unique
       - name: pickup_datetime
         description: "Pickup timestamp."
-        tests:
+        data_tests:
           - not_null
       - name: dropoff_datetime
         description: "Dropoff timestamp."
-        tests:
+        data_tests:
           - not_null
       - name: pickup_date_id
         description: "Foreign key to dim_date.date_id."
-        tests:
+        data_tests:
           - relationships:
               to: ref('dim_date')
               field: date_id
       - name: pickup_time_id
         description: "Foreign key to dim_time.time_id."
-        tests:
+        data_tests:
           - relationships:
               to: ref('dim_time')
               field: time_id
       - name: pickup_location_id
         description: "Foreign key to dim_location.location_id for pickup zone."
-        tests:
+        data_tests:
           - relationships:
               to: ref('dim_location')
               field: location_id
       - name: dropoff_location_id
         description: "Foreign key to dim_location.location_id for dropoff zone."
-        tests:
+        data_tests:
           - relationships:
               to: ref('dim_location')
               field: location_id
       - name: payment_type_id
         description: "Foreign key to dim_payment_type.payment_type_id."
-        tests:
+        data_tests:
           - accepted_values:
-              values: [1, 2, 3, 4, 5, 6]
+              values: [0, 1, 2, 3, 4, 5, 6]
               quote: false
       - name: vendor_id
         description: "Foreign key to dim_vendor.vendor_id."

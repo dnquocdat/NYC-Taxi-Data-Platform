@@ -149,7 +149,10 @@ with DAG(
 
     dbt_run = dbt_operator(
         task_id="dbt_run",
-        command=f"run --project-dir {DBT_PROJECT_DIR} --profiles-dir {DBT_PROJECT_DIR}",
+        command=(
+            f"run --project-dir {DBT_PROJECT_DIR} "
+            f"--profiles-dir {DBT_PROJECT_DIR} --full-refresh"
+        ),
     )
 
     dbt_test = dbt_operator(

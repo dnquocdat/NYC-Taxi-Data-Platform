@@ -1,4 +1,4 @@
-.PHONY: lint format test test-unit test-integration docker-up docker-down docker-logs dataset-check ingest-bronze-sample transform-silver-sample create-clickhouse-tables load-clickhouse-sample pipeline-sample dbt-seed dbt-run dbt-test dbt-docs dbt-image-build dbt-image-push superset-clickhouse-uri
+.PHONY: lint format format-check test test-unit test-integration docker-up docker-down docker-logs dataset-check ingest-bronze-sample transform-silver-sample create-clickhouse-tables load-clickhouse-sample pipeline-sample dbt-seed dbt-run dbt-test dbt-docs dbt-image-build dbt-image-push superset-clickhouse-uri
 
 PYTHON ?= python
 DBT_DIR ?= dbt/nyc_taxi
@@ -11,6 +11,9 @@ lint:
 format:
 	$(PYTHON) -m ruff check --fix src tests dags scripts
 	$(PYTHON) -m black src tests dags scripts
+
+format-check:
+	$(PYTHON) -m black --check src tests dags scripts
 
 test:
 	$(PYTHON) -m pytest
@@ -40,7 +43,7 @@ transform-silver-sample:
 	$(PYTHON) -m nyc_taxi_pipeline.cli transform-silver
 
 create-clickhouse-tables:
-	docker compose --env-file .env exec -T clickhouse clickhouse-client --queries-file /opt/project/scripts/create_clickhouse_tables.sql
+	$(PYTHON) scripts/create_clickhouse_tables.py
 
 load-clickhouse-sample:
 	$(PYTHON) -m nyc_taxi_pipeline.cli load-clickhouse
@@ -52,7 +55,7 @@ dbt-seed:
 	dbt seed --project-dir $(DBT_DIR) --profiles-dir $(DBT_DIR)
 
 dbt-run:
-	dbt run --project-dir $(DBT_DIR) --profiles-dir $(DBT_DIR)
+	dbt run --project-dir $(DBT_DIR) --profiles-dir $(DBT_DIR) --full-refresh
 
 dbt-test:
 	dbt test --project-dir $(DBT_DIR) --profiles-dir $(DBT_DIR)

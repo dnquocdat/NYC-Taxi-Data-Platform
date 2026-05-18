@@ -10,7 +10,10 @@ jobs:
     runs-on: ubuntu-latest
     env:
       PYTHON_VERSION: "3.11"
-      DBT_IMAGE: ${{ secrets.DOCKER_HUB_USERNAME }}/nyc-taxi-dbt:latest
+      DBT_IMAGE: nyc-taxi-dbt:ci
+      DOCKER_HUB_USERNAME: ${{ secrets.DOCKER_HUB_USERNAME }}
+      DOCKER_HUB_TOKEN: ${{ secrets.DOCKER_HUB_TOKEN }}
+      DOCKER_HUB_IMAGE: ${{ secrets.DOCKER_HUB_USERNAME }}/nyc-taxi-dbt:latest
       SPARK_LOCAL_IP: 127.0.0.1
 
     steps:
@@ -50,10 +53,16 @@ jobs:
         run: docker build -f dbt/nyc_taxi/Dockerfile -t "${DBT_IMAGE}" .
 
       - name: Log in to Docker Hub
+        if: ${{ env.DOCKER_HUB_USERNAME != '' && env.DOCKER_HUB_TOKEN != '' }}
         uses: docker/login-action@v3
         with:
-          username: ${{ secrets.DOCKER_HUB_USERNAME }}
-          password: ${{ secrets.DOCKER_HUB_TOKEN }}
+          username: ${{ env.DOCKER_HUB_USERNAME }}
+          password: ${{ env.DOCKER_HUB_TOKEN }}
+
+      - name: Tag dbt Docker image for Docker Hub
+        if: ${{ env.DOCKER_HUB_USERNAME != '' && env.DOCKER_HUB_TOKEN != '' }}
+        run: docker tag "${DBT_IMAGE}" "${DOCKER_HUB_IMAGE}"
 
       - name: Push dbt Docker image
-        run: docker push "${DBT_IMAGE}"
+        if: ${{ env.DOCKER_HUB_USERNAME != '' && env.DOCKER_HUB_TOKEN != '' }}
+        run: docker push "${DOCKER_HUB_IMAGE}"

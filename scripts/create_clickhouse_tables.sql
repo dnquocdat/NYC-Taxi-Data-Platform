@@ -1,6 +1,6 @@
-CREATE DATABASE IF NOT EXISTS nyc_taxi;
+CREATE DATABASE IF NOT EXISTS {database};
 
-CREATE TABLE IF NOT EXISTS nyc_taxi.silver_yellow_taxi_trips
+CREATE TABLE IF NOT EXISTS {database}.silver_yellow_taxi_trips
 (
     trip_id String,
     vendor_id Nullable(UInt16),
